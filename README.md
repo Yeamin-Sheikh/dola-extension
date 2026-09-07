@@ -1,88 +1,291 @@
-# Dola AI Video Watermark Remover and Batch Studio v2.3.1
+<p align="center">
+  <img src="assets/banner.png" alt="Dola Studio Banner" width="100%">
+</p>
 
-Chrome extension sidebar for automated batch video creation, unwatermarked 1080p raw MP4 downloading, and 100% in-browser dynamic watermark removal on Dola AI and Doubao.
+<p align="center">
+  <img src="assets/logo.png" alt="Dola Studio Logo" width="88">
+</p>
+
+<h1 align="center">Dola Video Studio</h1>
+
+<p align="center">
+  <strong>Autonomous batch video creation, unwatermarked 1080p MP4 downloading, and native in-browser dynamic watermark removal for Dola AI and Doubao.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Manifest-V3-5e6ad2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
+  <img src="https://img.shields.io/badge/Engine-In--Browser%20Offscreen-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="In-Browser Cleaner">
+  <img src="https://img.shields.io/badge/Version-v2.3.1-38bdf8?style=for-the-badge" alt="Version 2.3.1">
+  <img src="https://img.shields.io/badge/Zero%20Terminal-100%25%20Client--Side-a855f7?style=for-the-badge" alt="Client-Side Only">
+  <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge" alt="License">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Yeamin-Sheikh/dola-extension/raw/main/dola_watermark_remove.zip">
+    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.1-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#key-features">Key features</a> •
+  <a href="#quick-start">Quick start</a> •
+  <a href="#workflow-modes">Workflow modes</a> •
+  <a href="#watermark-cleaning-engine">Watermark engine</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#settings-reference">Settings</a> •
+  <a href="#repository-structure">Structure</a>
+</p>
+
+---
 
 ## Overview
 
-Dola Studio is a Manifest V3 browser extension built with a high-density obsidian UI, hardware-accelerated MediaRecorder inpainting, and an automated chat injection engine for Dola AI (`dola.com/chat`).
+Dola Studio is a Manifest V3 browser extension for creators using Dola AI (`dola.com/chat`) and Doubao (`doubao.com`). It pairs a high-density side panel interface with an automated chat injection engine, direct stream decoders, and a self-contained in-browser video inpainting engine.
 
-## Quick start
+When Dola AI produces videos, it outputs either raw unwatermarked 1080p MP4 video streams or ByteDance dynamic watermark streams with moving corner stamps. Dola Studio detects both stream variants at the network level. Raw streams are downloaded directly as unwatermarked MP4 files, while dynamic watermark streams are processed frame-by-frame inside Chrome offscreen documents using multiscale harmonic diffusion with synchronous Web Audio retention.
 
-### Option 1: Load unpacked folder (recommended for development)
+Cleaned output videos are saved into a dedicated `cleaned/` subfolder, keeping original downloads and inpainted files separated.
 
-1. Open Google Chrome and go to `chrome://extensions/`.
-2. Enable **Developer mode** using the toggle switch in the top right corner.
-3. Click **Load unpacked** and select the `dola_watermark_remove` folder.
-4. Navigate to `https://www.dola.com/chat`.
-5. Click the extension icon in the Chrome toolbar to dock the sidebar.
-
-### Option 2: Pre-packaged ZIP
-
-1. Extract `dola_watermark_remove.zip`.
-2. Follow steps 1 through 5 above, selecting the extracted directory.
+---
 
 ## Key features
 
-### 1. Generation section
-- **Batch prompt input**: Paste prompts in any format (numbered `1.` / `2.`, bullet points `-`, double-spaced paragraphs, or single lines) without prompt collapsing or counter errors.
-- **Live prompt counter**: Automatically parses and displays the exact number of prompts queued.
-- **Paste to chat input**: One-click button to immediately paste formatted prompts with the official Generate Videos skill chip directly into Dola's chat input.
-- **Aspect ratio presets**: Toggle between 9:16 vertical, 16:9 widescreen, or raw text format.
-- **Automated slash command typing**: Types `/generate video` one character at a time with a 45ms delay, converts it into the Generate Videos skill chip, moves to a new line, and submits the batch.
-- **Sidebar auto-zoom**: Automatically scales down the Dola webpage to your chosen percentage (default 80%) while the sidebar is open or on queue start, and resets back to 100% when the sidebar is closed.
-- **Screen video grabber**: Grab and download any finished video currently visible on screen.
-- **Download history**: View captured videos with timestamps, dynamic watermark badges, cleaned status badges, and click to open in Windows Explorer.
+| Feature | Description | Mechanism |
+|---|---|---|
+| **Multi-format prompt parser** | Parses numbered lists (`1.`, `2.`), bullet points (`-`), section headers (`Prompt 1:`), and blank-line separated blocks without collapsing prompts. | Regular expression prefix segmentation in `sidepanel.js` |
+| **Paste to chat input** | One-click button to immediately paste formatted prompts with the official Generate Videos skill chip directly into Dola's editor. | Polling editor search with synthetic Tiptap mention insertion |
+| **In-browser watermark removal** | Removes moving ByteDance watermarks without external Python scripts, terminal watchers, or local servers. | Multiscale harmonic diffusion in Canvas via Chrome offscreen document |
+| **Audio track preservation** | Retains synchronous AAC audio tracks during canvas inpainting. | HTMLMediaElement audio capture stream linked to Web Audio API destination |
+| **Cleaned output segregation** | Routes inpainted videos into `Downloads/Dola_Videos/cleaned/` while raw originals stay in `Downloads/Dola_Videos/`. | Chrome downloads filename suggestion pipeline |
+| **Sidebar auto-zoom** | Scales down the active Dola webpage to 80% while the sidebar is open, and restores 100% zoom when closed. | `chrome.tabs.setZoom` API coordination with fallback DOM scaling |
+| **Screen video grabber** | Grabs and downloads any finished video currently visible in the active tab. | DOM video element inspection and main-world media extraction |
+| **Prompt-based file naming** | Names downloaded MP4 files directly after the prompt text with clean ASCII sanitization. | Prompt capture listener and filename sanitization pipeline |
 
-### 2. In-browser dynamic watermark cleaning engine
-- **100% self-contained**: Entire watermark removal pipeline runs natively inside Chrome's offscreen engine with zero terminal commands, zero external Python processes, and no local servers.
-- **Multiscale harmonic diffusion inpainting**: Reconstructs natural background textures frame-by-frame using soft Gaussian-feathered elliptical zones across all 3 ByteDance quadrants (Bottom-Right, Mid-Left, and Top-Right).
-- **Audio preservation**: Retains original AAC audio tracks synchronously through HTMLMediaElement capture streams.
-- **Native MP4 export**: Encodes clean watermark-free video directly into standard MP4 via hardware-accelerated MediaRecorder.
-- **Segregated output**: Cleaned videos save directly into `Downloads/Dola_Videos/cleaned/`, keeping source and output files separate.
+---
 
-### 3. Settings section
-- **Downloads and storage group**: Auto-download raw MP4 switch, Windows Downloads subfolder configurator, and desktop notifications toggle at the top of settings.
-- **Automation sequence group**: Greeting selector, AI health check verification, and unattended bypass agreement editor in the middle.
-- **Workspace and display group**: Sidebar auto-zoom toggle, active zoom factor selector, and fresh chat toggle at the bottom.
-- **Natural action delays**: Pacing pauses between navigation, greeting, bypass, and prompt submission to keep execution smooth and reliable.
-- **Prompt-based file naming**: Saves videos named directly after the prompt that created them, with clean Windows-safe ASCII sanitization.
-- **Direct Blob pipeline**: Uses in-memory Blob URLs via an offscreen DOM engine, ensuring Chrome downloads directly to your chosen folder.
+## Quick start
 
-### 4. Right-click context menus
-- **Browser context menu**: Right-click anywhere in Chrome to open Dola Studio sidebar, download the visible video on screen, add selected text to your batch prompts draft, or download a video from a link.
-- **In-app custom context menu**: Custom Cut, Copy, Paste, and Select All context menu in the side panel and popup for text inputs and selections.
+### Option 1: Load unpacked folder
 
-### 5. Stream interception and unwatermarked extraction
-- Intercepts CDN video streams and requests raw unwatermarked media keys.
-- Decodes QAAB AES-CBC tokens using native browser crypto APIs.
-- In-memory Blob streaming: Downloads route cleanly to the target folder.
-- Runs directly inside Chrome with minimal memory consumption.
+1. Clone or download this repository.
+2. Open Google Chrome and navigate to `chrome://extensions/`.
+3. Enable the **Developer mode** toggle in the top right corner.
+4. Click **Load unpacked** and select the `dola_watermark_remove` directory.
+5. Open `https://www.dola.com/chat`.
+6. Click the extension icon in the toolbar to dock the sidebar.
+
+```bash
+git clone https://github.com/Yeamin-Sheikh/dola-extension.git
+```
+
+### Option 2: Pre-packaged ZIP
+
+1. Download **[dola_watermark_remove.zip](https://github.com/Yeamin-Sheikh/dola-extension/raw/main/dola_watermark_remove.zip)**.
+2. Extract the archive into a folder.
+3. Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, and select the extracted directory.
+
+---
+
+## Workflow modes
+
+Dola Studio supports two execution modes:
+
+```
+Mode 1: Instant Demonstration
+[Paste Prompts] -> [Click "Paste to Chat Input"] -> [Editor populated with Skill Chip] -> [Send manually]
+
+Mode 2: Full Unattended Automation
+[Paste Prompts] -> [Click "Start Batch Generation"] -> [New Chat] -> [Greeting] -> [Bypass Agreement] -> [Auto-Submit]
+```
+
+### Mode 1: Instant demonstration paste
+
+This mode is designed for live demonstrations, manual prompt review, or quick single runs:
+
+1. Paste prompts into the **Video prompts** text area.
+2. Select your desired aspect ratio (`9:16 Vertical`, `16:9 Wide`, or `Raw Prompt`).
+3. Click **Paste to Chat Input**.
+4. The extension waits for the editor, types `/generate video` with a typing animation, inserts the official skill chip, advances to a new line, and pastes all numbered prompts.
+5. Review the text in Dola and click the send button whenever you are ready.
+
+### Mode 2: Unattended batch automation
+
+This mode runs the complete multi-step generation workflow hands-free:
+
+1. Paste prompts into the **Video prompts** text area.
+2. Click **Start Batch Generation**.
+3. The extension opens a fresh chat if **Start new chat per batch** is enabled.
+4. It sends the health check greeting (`hey buddy`). If Dola takes longer than 18 seconds to reply, it logs a warning and continues without halting.
+5. It sends the batch agreement instructions to set unattended generation mode. If confirmation takes longer than 22 seconds, it continues without halting.
+6. It types `/generate video`, inserts the skill chip, inserts all prompts, activates the Dola send button, and submits the batch.
+7. It monitors stream completion and downloads every generated video as it finishes.
+
+---
+
+## Watermark cleaning engine
+
+ByteDance AI video generation overlays dynamic watermarks across three predictable screen quadrants:
+
+```
++---------------------------------------+
+|                       [ Quadrant 3 ]  |  Quadrant 3: Top-Right
+|                       (rx: 0.68-0.98) |  (faint white stamp)
+|                       (ry: 0.03-0.16) |
+|                                       |
+| [ Quadrant 2 ]                        |  Quadrant 2: Mid-Left
+| (rx: 0.02-0.30)                       |  (transition wipe area)
+| (ry: 0.44-0.57)                       |
+|                                       |
+|                       [ Quadrant 1 ]  |  Quadrant 1: Bottom-Right
+|                       (rx: 0.68-0.98) |  (primary stamp)
+|                       (ry: 0.84-0.97) |
++---------------------------------------+
+```
+
+### Inpainting pipeline
+
+1. **Quadrant isolation**: Zones are bounded using relative coordinates scaled to the video canvas width and height.
+2. **Elliptical boundary feathering**: Rectangular binary masks cause boxy optical distortion. Dola Studio applies soft elliptical masks with Gaussian feathering (`sigma=16`) so pixel weights decay smoothly to 0.0 at zone boundaries.
+3. **Multiscale harmonic diffusion**: Background textures are reconstructed frame-by-frame using a 4x downsampled Laplacian boundary solver with 6 relaxation sweeps. This runs at approximately 1.1ms per frame, ensuring steady 30fps and 60fps processing.
+4. **Synchronous Web Audio stream**: An `AudioContext` taps the video source stream, piping original audio into a `MediaStreamDestinationNode`.
+5. **Hardware MP4 export**: Canvas video frames and audio tracks are captured into an active `MediaStream` and recorded via `MediaRecorder` (`video/mp4;codecs=avc1,mp4a.40.2`).
+6. **Segregated download**: The resulting MP4 blob is saved into `Downloads/Dola_Videos/cleaned/<prompt>_clean.mp4`.
+
+---
+
+## Architecture
+
+The extension is organized into five isolated layers communicating over origin-verified Chrome message channels:
+
+```
++-------------------------------------------------------------------------+
+|                        Dola Studio Side Panel                           |
+|   - Multi-format prompt parser (numbers, bullets, headers, paragraphs)  |
+|   - Aspect ratio segmented control (9:16, 16:9, Raw)                    |
+|   - Queue controller and tab zoom coordinator (80% workspace scale)     |
+|   - Video history panel with direct Windows Explorer file links         |
++-------------------------------------------------------------------------+
+                                     | chrome.tabs.sendMessage
++------------------------------------v------------------------------------+
+|                     Content Script (content.js)                         |
+|   - Workflow state machine (New Chat -> Greeting -> Bypass -> Prompts)  |
+|   - Non-fatal AI responsiveness timers                                  |
+|   - DOM download link scanner and canonical media key deduplication     |
++-------------------------------------------------------------------------+
+                                     | CustomEvent bridge
++------------------------------------v------------------------------------+
+|                   Main World Script (extractor.js)                      |
+|   - Fetch and XHR payload interceptor (QAAB AES-CBC token decryption)   |
+|   - Polling editor finder (waitForDolaEditor across 4 DOM selectors)    |
+|   - Dual injection (Tiptap skill mention chip + DOM execCommand fallback|
+|   - Send button targeting (#flow-end-msg-send container isolation)      |
++-------------------------------------------------------------------------+
+                                     | chrome.runtime.sendMessage
++------------------------------------v------------------------------------+
+|                  Background Worker (background.js)                      |
+|   - In-memory Blob download pipeline                                    |
+|   - Filename ASCII sanitization based on prompt text                    |
+|   - Stream classifier (Raw 1080p Master vs Dynamic Watermark)           |
++-------------------------------------------------------------------------+
+                 |                                         |
+    (Raw Master) |                      (Dynamic Watermark)|
+                 v                                         v
++--------------------------------+        +--------------------------------+
+|   Chrome Downloads Manager     |        | Chrome Offscreen (offscreen.js)|
+|   Saves directly to:           |        | - Canvas multiscale harmonic   |
+|   Downloads/Dola_Videos/       |        |   diffusion inpainting         |
+|   <prompt>.mp4                 |        | - Web Audio sync pipeline      |
++--------------------------------+        | - Hardware MediaRecorder MP4   |
+                                          +--------------------------------+
+                                                           |
+                                                           v
+                                          +--------------------------------+
+                                          |   Chrome Downloads Manager     |
+                                          |   Saves directly to:           |
+                                          |   Downloads/Dola_Videos/       |
+                                          |   cleaned/<prompt>_clean.mp4   |
+                                          +--------------------------------+
+```
+
+---
+
+## Settings reference
+
+Open the **Settings** tab in the sidebar to configure preferences. All settings persist across sessions in `chrome.storage.local`.
+
+| Group | Setting | Default | Description |
+|---|---|---|---|
+| **Downloads & storage** | Auto-download videos | Enabled | Automatically downloads videos upon generation completion. |
+| | Destination subfolder | `Dola_Videos` | Target folder inside your Windows `Downloads` directory. |
+| | Desktop notifications | Disabled | Displays native Chrome desktop notifications for completed downloads. |
+| **Automation sequence** | Start new chat per batch | Enabled | Opens a clean chat conversation before starting a new batch. |
+| | AI health check greeting | `hey buddy` | Initial greeting to verify AI connection before prompt transmission. |
+| | Unattended bypass instruction | Built-in preset | Agreement prompt instructing Dola to process all videos without confirmation pauses. |
+| **Workspace & display** | Auto-zoom on batch | Enabled | Scales active Dola tab to fit sidebar without horizontal scrollbars. |
+| | Default zoom factor | `80%` | Zoom level applied while sidebar is connected (options: 75%, 80%, 85%, 90%, 100%). |
+
+---
+
+## Context menus and shortcuts
+
+### Browser context menu
+
+Right-click anywhere in Chrome to access Dola Studio actions:
+
+* **Open Dola Studio sidebar**: Opens or focuses the side panel.
+* **Download visible video**: Captures the video currently playing on screen.
+* **Add selected text to prompts**: Appends highlighted text into the batch prompt queue.
+* **Download video from link**: Direct link capture for media URLs.
+
+### In-app context menu
+
+Right-click inside any text input or selection within the side panel or popup:
+
+* **Cut** (`Ctrl+X`)
+* **Copy** (`Ctrl+C`)
+* **Paste** (`Ctrl+V`)
+* **Select all** (`Ctrl+A`)
+
+---
 
 ## Repository structure
 
 ```
 dola_extension/
-├── dola_watermark_remove/      # Unpacked extension root (Manifest V3)
-│   ├── manifest.json           # Extension permissions and background worker config
-│   ├── background.js           # Background service worker with Blob download pipeline
-│   ├── content.js              # Automation bridge and tab communication
-│   ├── extractor.js            # Main world network interceptor and Tiptap injector
-│   ├── offscreen.html          # Offscreen document host for inpainting engine
-│   ├── offscreen.js            # Native canvas inpainting and MediaRecorder engine
-│   ├── sidepanel.html          # Obsidian glass sidebar interface
-│   ├── sidepanel.css           # 125% DPI optimized design system
-│   ├── sidepanel.js            # Prompt parser, zoom coordinator, and queue runner
-│   ├── popup.html              # Browser toolbar popup
-│   ├── popup.css               # Popup styling
-│   ├── popup.js                # Popup logic
-│   ├── assets/                 # Icons and artwork
-│   │   └── logo.png
-│   ├── icon16.png
-│   ├── icon32.png
-│   ├── icon48.png
-│   ├── icon128.png
-│   └── README.md
-├── dola_watermark_remove.zip   # Ready-to-distribute packaged archive
-├── .gitignore
-└── README.md
+├── dola_watermark_remove/          # Unpacked extension root (Manifest V3)
+│   ├── manifest.json               # Extension configuration, permissions, and worker setup
+│   ├── background.js               # Background service worker with Blob download pipeline
+│   ├── content.js                  # Automation bridge and tab communication
+│   ├── extractor.js                # Main-world network interceptor and editor injector
+│   ├── offscreen.html              # Host document for in-browser canvas cleaning
+│   ├── offscreen.js                # Multiscale harmonic diffusion inpainting engine
+│   ├── sidepanel.html              # High-density obsidian sidebar interface
+│   ├── sidepanel.css               # 125% DPI optimized design system
+│   ├── sidepanel.js                # Prompt parser, zoom coordinator, and queue runner
+│   ├── popup.html                  # Browser toolbar popup
+│   ├── popup.css                   # Toolbar popup styling
+│   ├── popup.js                    # Toolbar popup controller
+│   ├── assets/                     # Graphic assets
+│   │   ├── logo.png                # Aperture play button squircle icon
+│   │   └── banner.png              # Dark ambient HUD particle banner
+│   ├── icon16.png                  # 16x16 browser toolbar icon
+│   ├── icon32.png                  # 32x32 high-DPI icon
+│   ├── icon48.png                  # 48x48 extension management icon
+│   ├── icon128.png                 # 128x128 store display icon
+│   ├── README.md                   # Source directory documentation
+│   ├── AGENTS.md                   # Architecture specification for AI coding agents
+│   └── CUSTOMER_USER_GUIDE_AND_CHECKLIST.md # End-user verification checklist
+├── assets/                         # Repository presentation artwork
+│   ├── logo.png
+│   └── banner.png
+├── dola_watermark_remove.zip       # Pre-packaged distribution archive
+├── .gitignore                      # Git ignore patterns
+└── README.md                       # Master repository documentation
 ```
+
+---
+
+## License
+
+Developed by **Yeamin Sheikh**. Released under the [MIT License](LICENSE).
