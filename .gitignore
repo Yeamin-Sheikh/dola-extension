@@ -1,0 +1,11 @@
+# Operating system metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
+__MACOSX/
+
+# IDE & Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo

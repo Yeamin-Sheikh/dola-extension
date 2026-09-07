@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dola Video Studio</title>
+  <!-- Modern Clean Google Fonts with Tabular Numerals -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="sidebar-shell">
+    <!-- Header: Compact 36px solid tool bar -->
+    <header class="header">
+      <div class="header-content">
+        <div class="brand">
+          <div class="logo-wrapper">
+            <img src="assets/logo.png" alt="Dola Studio" class="logo-img">
+          </div>
+          <div class="brand-text">
+            <div class="brand-title-row">
+              <h1 class="title">Dola Studio</h1>
+              <span class="version-badge">v2.3.1</span>
+            </div>
+          </div>
+        </div>
+        <div class="header-status-group">
+          <div class="cleaner-indicator online" id="header-cleaner-status" title="In-Browser Watermark Removal Engine (Native Chrome)">
+            <span class="cleaner-dot online" id="cleaner-status-dot"></span>
+            <span class="cleaner-text" id="cleaner-status-text">In-Browser Cleaner</span>
+          </div>
+          <div class="status-indicator" id="header-status">
+            <span class="status-dot"></span>
+            <span class="status-text" id="header-status-text">Ready</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs (Segmented Capsule Control) -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="nav-tab active" id="tab-btn-generation" data-target="section-generation" type="button" role="tab" aria-selected="true">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Generation</span>
+      </button>
+      <button class="nav-tab" id="tab-btn-settings" data-target="section-settings" type="button" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- SECTION 1: GENERATION TAB -->
+    <main class="tab-content active" id="section-generation" role="tabpanel">
+      <!-- Batch Prompts Section -->
+      <section class="section prompt-section">
+        <div class="section-top-row">
+          <div class="section-heading-group">
+            <svg class="section-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span class="section-label">Video prompts</span>
+          </div>
+          <span class="badge-count" id="prompt-count-badge">0 prompts</span>
+        </div>
+        <div class="textarea-wrapper">
+          <textarea
+            id="batch-prompts-input"
+            class="prompts-textarea"
+            rows="5"
+            placeholder="Paste video prompts here, one prompt per line&#10;&#10;Example:&#10;A majestic golden eagle soaring over snowy mountains&#10;Cyberpunk street at night in rain with neon signs"
+            spellcheck="false"
+          ></textarea>
+        </div>
+        <div class="prompt-tools-row">
+          <div class="prompt-tools-left">
+            <button id="btn-clear-prompts" class="btn-text-subtle" type="button">
+              <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              <span>Clear</span>
+            </button>
+            <button id="btn-paste-to-chat" class="btn-text-action" type="button" title="Paste detected prompts directly into the Dola chat input box">
+              <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+              <span id="btn-paste-to-chat-text">Paste to Chat Input</span>
+            </button>
+          </div>
+          <span class="help-text">Auto-sequenced</span>
+        </div>
+      </section>
+
+      <!-- Compact Aspect Ratio Segmented Control -->
+      <section class="section ratio-section compact-section">
+        <div class="ratio-compact-row">
+          <span class="compact-label">Aspect:</span>
+          <div class="ratio-pill-group" id="ratio-group">
+            <button class="ratio-btn ratio-pill" data-ratio="9:16" type="button">9:16 Vertical</button>
+            <button class="ratio-btn ratio-pill" data-ratio="16:9" type="button">16:9 Wide</button>
+            <button class="ratio-btn ratio-pill active" data-ratio="raw" type="button">Raw Prompt</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Queue Controls & Live Progress -->
+      <section class="section queue-section">
+        <button id="btn-start-queue" class="btn-primary" type="button">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span id="btn-start-queue-text">Start Batch Generation</span>
+        </button>
+        <button id="btn-stop-queue" class="btn-danger hidden" type="button">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="6" y="6" width="12" height="12"/>
+          </svg>
+          <span>Stop Batch Queue</span>
+        </button>
+
+        <!-- Live Progress Status Card -->
+        <div class="queue-status-card hidden" id="queue-status-card">
+          <div class="queue-status-header">
+            <span class="status-dot status-dot-running"></span>
+            <span class="queue-status-title" id="queue-status-title">Starting queue...</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="queue-progress-bar"></div>
+          </div>
+          <div class="queue-status-detail" id="queue-status-detail">Preparing sequence</div>
+        </div>
+      </section>
+
+      <!-- Quick Screen Capture Video Action -->
+      <div class="action-row">
+        <button id="btn-download-screen" class="btn-secondary-compact" type="button">
+          <svg class="btn-icon icon-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span id="btn-download-screen-text">Download Video on Screen</span>
+        </button>
+      </div>
+
+      <!-- Download History / Captured Queue -->
+      <section class="section history-section">
+        <div class="history-header">
+          <div class="section-heading-group">
+            <svg class="section-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+            </svg>
+            <span class="section-label">Captured (<span id="dola-history-count" class="mono-num">0</span>)</span>
+          </div>
+          <div class="history-actions-row">
+            <button id="btn-toggle-manual-import" class="btn-text-cyan" type="button">+ Import Links</button>
+            <button id="btn-dola-clear-history" class="btn-text-danger" type="button">Clear</button>
+          </div>
+        </div>
+
+        <!-- Inline Manual Link Importer Drawer -->
+        <div class="manual-import-drawer hidden" id="manual-import-drawer">
+          <textarea
+            id="manual-links-input"
+            class="manual-links-textarea mono-font"
+            rows="3"
+            placeholder="Paste video links or tokens here, one per line&#10;http://v16-dola.dola.com/...&#10;qAAB..."
+            spellcheck="false"
+          ></textarea>
+          <div class="manual-import-actions">
+            <button id="btn-run-manual-import" class="btn-primary-sm" type="button">Download Videos</button>
+            <span id="manual-import-status" class="manual-import-status"></span>
+          </div>
+        </div>
+
+        <div class="history-list" id="dola-history-list">
+          <div class="empty-state">
+            <div class="empty-state-icon-box">
+              <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+                <line x1="7" y1="2" x2="7" y2="22"/>
+                <line x1="17" y1="2" x2="17" y2="22"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <line x1="2" y1="7" x2="7" y2="7"/>
+                <line x1="2" y1="17" x2="7" y2="17"/>
+                <line x1="17" y1="17" x2="22" y2="17"/>
+                <line x1="17" y1="7" x2="22" y2="7"/>
+              </svg>
+            </div>
+            <span class="empty-state-title">No videos downloaded yet</span>
+            <span class="empty-state-desc">Captured unwatermarked 1080p MP4s will appear here automatically.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- SECTION 2: SETTINGS TAB -->
+    <main class="tab-content" id="section-settings" role="tabpanel">
+      <!-- 1. Downloads & Storage Card -->
+      <section class="section settings-card">
+        <div class="section-top-row">
+          <div class="section-heading-group">
+            <svg class="section-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span class="section-label">Downloads & storage</span>
+          </div>
+        </div>
+
+        <!-- Auto-Download Toggle -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-title">Auto-download raw MP4</span>
+            <span class="toggle-desc">Saves 1080p unwatermarked video when ready</span>
+          </div>
+          <label class="switch" title="Toggle Auto-Download">
+            <input id="dola-auto-download-toggle" type="checkbox" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Folder Destination -->
+        <div class="folder-input-block border-top-subtle">
+          <div class="toggle-info">
+            <span class="toggle-title">Download subfolder</span>
+            <span class="toggle-desc">Destination inside Windows Downloads folder</span>
+          </div>
+          <div class="folder-group">
+            <div class="folder-input-wrapper">
+              <span class="folder-prefix">Downloads/</span>
+              <input
+                type="text"
+                id="dola-subfolder-input"
+                class="text-input mono-font folder-input"
+                placeholder="Dola_Videos"
+                value="Dola_Videos"
+                spellcheck="false"
+              >
+            </div>
+            <button id="btn-dola-save-folder" class="btn-sm" type="button">Save</button>
+          </div>
+        </div>
+
+        <!-- Desktop Notifications Toggle -->
+        <div class="toggle-row border-top-subtle">
+          <div class="toggle-info">
+            <span class="toggle-title">Desktop notifications</span>
+            <span class="toggle-desc">Show a system popup when a video finishes downloading</span>
+          </div>
+          <label class="switch" title="Toggle Desktop Notifications">
+            <input id="setting-notifications-toggle" type="checkbox">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 2. Batch Conversation Sequence Card -->
+      <section class="section settings-card">
+        <div class="section-top-row">
+          <div class="section-heading-group">
+            <svg class="section-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span class="section-label">Automation sequence</span>
+          </div>
+          <span class="step-count-badge">Pre-flight messages</span>
+        </div>
+
+        <!-- Step 1: Greeting Message -->
+        <div class="settings-step-block">
+          <div class="step-header-row">
+            <div class="step-indicator">
+              <span class="step-number">1</span>
+              <span class="step-title">Greeting message</span>
+            </div>
+          </div>
+          <div class="select-wrapper">
+            <select id="setting-greeting-select" class="select-input">
+              <option value="hey buddy">hey buddy</option>
+              <option value="hello! ready for some video prompts?">hello! ready for some video prompts?</option>
+              <option value="hi there, quick favor">hi there, quick favor</option>
+              <option value="hey, let's create some video content">hey, let's create some video content</option>
+              <option value="custom">Custom message...</option>
+            </select>
+            <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+          <!-- Custom Greeting Input: displayed when 'custom' is selected -->
+          <div class="custom-greeting-wrap hidden" id="custom-greeting-wrap">
+            <input
+              type="text"
+              id="setting-greeting-input"
+              class="text-input"
+              value="hey buddy"
+              placeholder="Type custom greeting..."
+              spellcheck="false"
+            >
+          </div>
+        </div>
+
+        <!-- Step 2: Bypass Agreement Instruction -->
+        <div class="settings-step-block border-top-subtle">
+          <div class="step-header-row">
+            <div class="step-indicator">
+              <span class="step-number">2</span>
+              <span class="step-title">Unattended bypass agreement</span>
+            </div>
+            <button id="btn-reset-bypass" class="btn-text-subtle" type="button">Reset</button>
+          </div>
+          <span class="step-desc">Instructs Dola to generate all prompts continuously without pausing</span>
+          <div class="textarea-wrapper">
+            <textarea
+              id="setting-bypass-input"
+              class="prompts-textarea compact-textarea"
+              rows="3"
+              spellcheck="false"
+            >I'll be away from home and unavailable for the next few hours due to some commitments, so I'm giving you all the prompts in advance. Please create videos for every prompt I send, with each video being approximately 15 seconds long, depending on the prompt. Do not ask me any questions or wait for my confirmation at any stage. If any prompt or video encounters a violation, generation issue, or any other problem, simply skip that particular one and continue with the remaining prompts. Keep processing and generating the videos one after another without stopping or requesting additional instructions, as I will not be available to respond during this time.</textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Workspace & Display Card -->
+      <section class="section settings-card">
+        <div class="section-top-row">
+          <div class="section-heading-group">
+            <svg class="section-heading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span class="section-label">Workspace & display</span>
+          </div>
+        </div>
+
+        <!-- Sidebar Auto-Zoom Toggle -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-title">Sidebar auto-zoom</span>
+            <span class="toggle-desc">Scale page while sidebar is open, resets to 100% on close</span>
+          </div>
+          <label class="switch" title="Toggle Auto-Zoom with Sidebar">
+            <input id="setting-auto-zoom-toggle" type="checkbox" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Zoom Level Selector (Indented Dependent Control) -->
+        <div class="dependent-control" id="zoom-level-container">
+          <div class="field-label-row">
+            <label for="setting-zoom-level-select" class="field-label">Active zoom factor</label>
+            <span class="mono-badge" id="current-zoom-pill">80%</span>
+          </div>
+          <div class="select-wrapper">
+            <select id="setting-zoom-level-select" class="select-input mono-font">
+              <option value="0.70">70% (Extra wide view)</option>
+              <option value="0.75">75% (Spacious view)</option>
+              <option value="0.80" selected>80% (Recommended default)</option>
+              <option value="0.85">85% (Subtle zoom out)</option>
+              <option value="0.90">90% (Minor zoom out)</option>
+              <option value="1.00">100% (Normal - no zoom)</option>
+            </select>
+            <svg class="select-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- New Chat per Batch Toggle -->
+        <div class="toggle-row border-top-subtle">
+          <div class="toggle-info">
+            <span class="toggle-title">Fresh chat per batch</span>
+            <span class="toggle-desc">Open a clean Dola chat before starting a batch queue</span>
+          </div>
+          <label class="switch" title="Toggle New Chat per Batch">
+            <input id="setting-new-chat-toggle" type="checkbox" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span class="footer-note">Dola Video Studio &bull; v2.2.8</span>
+    </footer>
+  </div>
+
+  <!-- Custom Right-Click Context Menu -->
+  <div class="context-menu" id="sidebar-context-menu" role="menu">
+    <div class="menu-item" data-action="cut" role="menuitem" tabindex="0">
+      <div class="menu-item-left">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="6" cy="6" r="3"/>
+          <circle cx="6" cy="18" r="3"/>
+          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+        </svg>
+        <span>Cut</span>
+      </div>
+      <span class="menu-shortcut">Ctrl+X</span>
+    </div>
+    <div class="menu-item" data-action="copy" role="menuitem" tabindex="0">
+      <div class="menu-item-left">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Copy</span>
+      </div>
+      <span class="menu-shortcut">Ctrl+C</span>
+    </div>
+    <div class="menu-item" data-action="paste" role="menuitem" tabindex="0">
+      <div class="menu-item-left">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        </svg>
+        <span>Paste</span>
+      </div>
+      <span class="menu-shortcut">Ctrl+V</span>
+    </div>
+    <div class="menu-separator"></div>
+    <div class="menu-item" data-action="select-all" role="menuitem" tabindex="0">
+      <div class="menu-item-left">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 11 12 14 22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <span>Select all</span>
+      </div>
+      <span class="menu-shortcut">Ctrl+A</span>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
