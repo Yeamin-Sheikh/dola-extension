@@ -15,12 +15,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-5e6ad2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
   <img src="https://img.shields.io/badge/Engine-In--Browser%20Offscreen-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="In-Browser Cleaner">
-  <img src="https://img.shields.io/badge/Version-v2.3.2-38bdf8?style=for-the-badge" alt="Version 2.3.2">
+  <img src="https://img.shields.io/badge/Version-v2.3.3-38bdf8?style=for-the-badge" alt="Version 2.3.3">
   <img src="https://img.shields.io/badge/Watermark_Removal-Client--Side_Only-10b981?style=for-the-badge" alt="Client-Side Only">
   <img src="https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge" alt="MIT License">
   <br>
   <a href="https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola_watermark_remove.zip">
-    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.2-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
+    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.3-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
   </a>
 </p>
 

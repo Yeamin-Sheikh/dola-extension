@@ -52,9 +52,6 @@
   const settingAutoZoomToggle = document.getElementById('setting-auto-zoom-toggle');
   const settingZoomLevelSelect = document.getElementById('setting-zoom-level-select');
   const currentZoomPill = document.getElementById('current-zoom-pill');
-  const settingGreetingSelect = document.getElementById('setting-greeting-select');
-  const customGreetingWrap = document.getElementById('custom-greeting-wrap');
-  const settingGreetingInput = document.getElementById('setting-greeting-input');
   const settingBypassInput = document.getElementById('setting-bypass-input');
   const btnResetBypass = document.getElementById('btn-reset-bypass');
   const autoDownloadToggle = document.getElementById('dola-auto-download-toggle');
@@ -72,8 +69,6 @@
     newChatPerBatch: true,
     autoZoomOnBatch: true,
     zoomLevel: 0.80,
-    greetingPreset: 'hey buddy',
-    greetingText: 'hey buddy',
     bypassPrompt: DEFAULT_BYPASS_PROMPT,
     aspectRatio: 'raw',
     activeTab: 'generation',
@@ -562,7 +557,6 @@
         autoZoom: currentSettings.autoZoomOnBatch,
         zoomAppliedViaTabsApi,
         zoomLevel: currentSettings.zoomLevel,
-        greetingText: currentSettings.greetingText,
         bypassPrompt: currentSettings.bypassPrompt
       }
     }, res => {
@@ -666,50 +660,7 @@
     });
   }
 
-  // --- 6. Settings: First Message (Greeting) ---
-  function syncGreetingVisibility() {
-    const isCustom = settingGreetingSelect.value === 'custom';
-    if (customGreetingWrap) {
-      customGreetingWrap.classList.toggle('hidden', !isCustom);
-    }
-  }
 
-  settingGreetingSelect.addEventListener('change', () => {
-    const val = settingGreetingSelect.value;
-    if (val !== 'custom') {
-      settingGreetingInput.value = val;
-      currentSettings.greetingText = val;
-    }
-    currentSettings.greetingPreset = val;
-    syncGreetingVisibility();
-    safeStorage.set({
-      dola_greeting_preset: currentSettings.greetingPreset,
-      dola_greeting_text: currentSettings.greetingText
-    });
-  });
-
-  settingGreetingInput.addEventListener('input', () => {
-    const text = settingGreetingInput.value.trim();
-    currentSettings.greetingText = text;
-
-    // Check if entered text matches a preset
-    let matched = false;
-    Array.from(settingGreetingSelect.options).forEach(opt => {
-      if (opt.value === text) {
-        settingGreetingSelect.value = text;
-        matched = true;
-      }
-    });
-    if (!matched) {
-      settingGreetingSelect.value = 'custom';
-    }
-    currentSettings.greetingPreset = settingGreetingSelect.value;
-
-    safeStorage.set({
-      dola_greeting_preset: currentSettings.greetingPreset,
-      dola_greeting_text: currentSettings.greetingText
-    });
-  });
 
   // --- 7. Settings: Second Message (Bypass Instructions) ---
   settingBypassInput.addEventListener('input', () => {
@@ -1278,9 +1229,6 @@
 
   // Initialize DOM inputs immediately with defaults
   settingBypassInput.value = currentSettings.bypassPrompt;
-  settingGreetingInput.value = currentSettings.greetingText;
-  settingGreetingSelect.value = currentSettings.greetingPreset;
-  syncGreetingVisibility();
   settingNewChatToggle.checked = currentSettings.newChatPerBatch;
   if (settingAutoZoomToggle) settingAutoZoomToggle.checked = currentSettings.autoZoomOnBatch;
   if (settingZoomLevelSelect) {
@@ -1301,8 +1249,6 @@
         'dola_new_chat_per_batch',
         'dola_auto_zoom_enabled',
         'dola_zoom_level',
-        'dola_greeting_preset',
-        'dola_greeting_text',
         'dola_bypass_prompt'
       ]);
 
@@ -1359,17 +1305,6 @@
       if (currentSettings.autoZoomOnBatch) {
         applySidebarZoom().catch(() => {});
       }
-
-      // Greeting preset & text
-      if (res.dola_greeting_text) {
-        currentSettings.greetingText = res.dola_greeting_text;
-        settingGreetingInput.value = res.dola_greeting_text;
-      }
-      if (res.dola_greeting_preset) {
-        currentSettings.greetingPreset = res.dola_greeting_preset;
-        settingGreetingSelect.value = res.dola_greeting_preset;
-      }
-      syncGreetingVisibility();
 
       // Bypass prompt
       if (res.dola_bypass_prompt) {

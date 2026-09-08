@@ -594,7 +594,7 @@
     }
 
     const validPrompts = (prompts || []).map(p => p.trim()).filter(Boolean);
-    const totalSteps = (newChatPerBatch ? 1 : 0) + 3;
+    const totalSteps = (newChatPerBatch ? 1 : 0) + 2;
     let currentStep = 0;
 
     try {
@@ -623,58 +623,10 @@
 
       if (shouldStopQueue) throw new Error('Queue stopped by user.');
 
-      // Short delay before greeting
+      // Short delay before sending bypass agreement instructions
       await sleep(500);
 
-      // Step 2: Send Initial Greeting as AI Health Check
-      currentStep++;
-      reportQueueProgress({
-        title: 'Checking AI responsiveness...',
-        detail: `Sending greeting "${greetingText || 'hey buddy'}" to verify connection`,
-        currentStep,
-        totalSteps
-      });
-
-      const preGreetingCount = getAssistantMessages().length;
-      const preGreetingText = getLatestAssistantMessage();
-
-      window.dispatchEvent(new CustomEvent('DOLA_INJECT_AND_SEND', {
-        detail: { text: greetingText || 'hey buddy' }
-      }));
-
-      // Verify that Dola AI responded properly, but do not fatal-halt if slow
-      const greetingCheck = await verifyAiResponse({
-        preCount: preGreetingCount,
-        preText: preGreetingText,
-        actionName: 'greeting check',
-        timeoutMs: 18000
-      });
-
-      if (greetingCheck.ok) {
-        reportQueueProgress({
-          title: 'AI connection verified',
-          detail: `Dola responded: "${greetingCheck.snippet}"`,
-          currentStep,
-          totalSteps
-        });
-        await sleep(1500);
-      } else {
-        console.warn('[Dola Content] Greeting response timeout or unverified, proceeding to next step:', greetingCheck.error);
-        reportQueueProgress({
-          title: 'Greeting check bypassed',
-          detail: 'Proceeding directly to batch instructions',
-          currentStep,
-          totalSteps
-        });
-        await sleep(800);
-      }
-
-      if (shouldStopQueue) throw new Error('Queue stopped by user.');
-
-      // Short delay before bypass instruction
-      await sleep(500);
-
-      // Step 3: Send Bypass Instruction
+      // Step 2: Send Bypass Agreement Instruction (only pre-flight message)
       currentStep++;
       reportQueueProgress({
         title: 'Sending batch agreement instructions...',
