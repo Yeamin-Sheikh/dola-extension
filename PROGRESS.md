@@ -770,5 +770,15 @@ Status: Done
 - `sidepanel.js`: Added dynamic watermark type label update during progress.
 - `PROGRESS.md`: Logged Session 29.
 
+### 2026-09-08, Session 30
 
+**Status:** Complete
 
+#### What changed
+- Packaged clean, production-ready distribution archive `dola-extension.zip` in the extension root directory.
+- Strictly excluded internal development artifacts (`.git/`, `.gitignore`, `PROGRESS.md`, `AGENTS.md`, and `CUSTOMER_USER_GUIDE_AND_CHECKLIST.md`).
+- Confirmed flat archive hierarchy with runtime files and `assets/` subfolder at root, ready for sharing and immediate unpacked loading.
+
+#### Files touched
+- `dola-extension.zip`: Generated distribution archive.
+- `PROGRESS.md`: Logged Session 30.
