@@ -9,3 +9,6 @@ __MACOSX/
 .idea/
 *.swp
 *.swo
+
+# Package archives (stored on GitHub Releases)
+*.zip

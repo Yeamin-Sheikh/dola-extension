@@ -161,6 +161,32 @@
       .trim();
   }
 
+  /**
+   * Multi-Format Video Prompt Parser & Lexical Tokenizer
+   * Evaluates input buffer text through a prioritized grammatical hierarchy to resolve
+   * discrete video generation prompt boundaries without corrupting internal markdown structure:
+   * 
+   * Pre-Condition: Normalizes carriage returns (`\r\n` / `\r` -> `\n`) and applies trimming.
+   * 
+   * Hierarchy Level 1 (Explicit Thematic Breaks / Dividers):
+   * Tests for markdown horizontal rule markers (`---`, `===`, `___`, `***`).
+   * When matched, segments the text along divider boundaries. If `isRawMode` is active,
+   * returns sliced chunks verbatim with zero alteration of whitespace, bullets, or headers.
+   * 
+   * Hierarchy Level 2 (Raw Mode Cohesion):
+   * When `isRawMode` is active and no thematic dividers exist, enforces atomic cohesion:
+   * Returns `[raw]` as a single multi-paragraph prompt, ensuring complex multi-shot production
+   * specifications (e.g. Seedance 2.5 / Sora camera scripts) remain structurally unfragmented.
+   * 
+   * Hierarchy Level 3 (Explicit Domain Headers):
+   * In ratio-transformed modes (9:16 / 16:9), matches explicit task prefixes (`Prompt \d+:`, `Video \d+:`).
+   * Strips prefix metadata via `cleanPromptPrefix` while preserving internal bullet hierarchies.
+   * 
+   * Hierarchy Level 4 (Paragraph Block Chunking):
+   * Segments remaining inputs along double newline (`\n\s*\n+`) paragraph boundaries.
+   * 
+   * @returns {string[]} Array of normalized prompt chunks ready for injection or queue execution.
+   */
   function parsePromptsFromInput() {
     const raw = (batchPromptsInput.value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
     if (!raw) return [];

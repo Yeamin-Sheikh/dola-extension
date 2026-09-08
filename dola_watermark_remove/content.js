@@ -577,7 +577,38 @@
     });
   }
 
-  async function executeAutomationQueue({ prompts, aspectRatio, newChatPerBatch, autoZoom, zoomAppliedViaTabsApi, zoomLevel, greetingText, bypassPrompt }) {
+  /**
+   * Automation Queue State Machine Coordinator
+   * Manages end-to-end execution of unattended multi-prompt batch video generation workflows.
+   * Enforces sequential progression across discrete operational states:
+   * 
+   * State 0 (Initialization & Zoom Management):
+   * Enforces exclusive lock (`isQueueRunning`), sets cancellation sentinel, and optionally
+   * adjusts viewport CSS zoom factor to optimize layout density.
+   * 
+   * State 1 (Optional Route Transition):
+   * Triggers SPA navigation to a pristine conversation context via `DOLA_CLICK_NEW_CHAT`
+   * and blocks on DOM polling until the Tiptap ProseMirror editor element mounts.
+   * 
+   * State 2 (Pre-Flight Agreement Injection):
+   * Dispatches the `bypassPrompt` payload to prime the model's system-level response policies
+   * for non-interactive sequential generation, using DOM message count polling for verification.
+   * 
+   * State 3 (Batch Prompt Dispatch & Stream Interception):
+   * Prepares prompt payload (applying aspect ratio prefixes or passing raw markdown blocks verbatim),
+   * updates prompt history ring buffer for filename mapping, triggers `/generate video` batch injection,
+   * and delegates to network stream sniffers and DOM observers for artifact capture.
+   * 
+   * @param {Object} options - Queue configuration payload.
+   * @param {string[]} options.prompts - Normalized array of video prompt strings.
+   * @param {string} options.aspectRatio - Selected aspect ratio mode ('9:16', '16:9', 'raw').
+   * @param {boolean} options.newChatPerBatch - Whether to invoke fresh chat navigation.
+   * @param {boolean} options.autoZoom - Viewport zoom active flag.
+   * @param {number} options.zoomLevel - Float zoom scale factor (default: 0.80).
+   * @param {string} options.bypassPrompt - Unattended batch instruction text.
+   * @returns {Promise<{ok: boolean, error?: string}>} Execution outcome.
+   */
+  async function executeAutomationQueue({ prompts, aspectRatio, newChatPerBatch, autoZoom, zoomAppliedViaTabsApi, zoomLevel, bypassPrompt }) {
     if (isQueueRunning) {
       return { ok: false, error: 'A queue is already running.' };
     }

@@ -16,6 +16,18 @@ const dolaInProgressKeys = new Set();
 const dolaDownloadedKeys = new Set();
 const activeBlobDownloads = new Map();
 
+/**
+ * ByteDance Canonical Resource Key Extractor
+ * Normalizes ephemeral CDN URLs to static content-addressed keys for deduplication.
+ * ByteDance video assets follow the URI topology: `https://[cdn-node]/tos-[region]/[hash]?[params]`
+ * The query parameters contain short-lived access tokens (`&auth_key=...&wsSecret=...`)
+ * that rotate on every request. This function isolates the static object path
+ * (`/tos-[region]/[hash]`) or uses the canonical `vid` to prevent redundant downloads.
+ * 
+ * @param {string} url - Ephemeral signed CDN URL.
+ * @param {string} [vid] - Optional ByteDance video ID.
+ * @returns {string} Normalized canonical key.
+ */
 function dolaExtractCanonicalKey(url, vid) {
   if (vid && !String(vid).startsWith('http')) return String(vid).trim();
   const clean = String(url || '').trim();

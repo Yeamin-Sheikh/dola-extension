@@ -831,7 +831,15 @@
     };
     window.addEventListener('DOLA_CLICK_NEW_CHAT', window.__DOLA_NEW_CHAT_LISTENER__);
 
-    // Editor finder with polling support across multiple DOM selectors
+    /**
+     * Editor Locator Heuristic
+     * Traverses the DOM hierarchy to resolve Dola's active rich-text input container.
+     * Evaluates multiple CSS selector signatures in priority order:
+     * 1. `.tiptap.ProseMirror`: Standard Tiptap ProseMirror contenteditable instance exposing `editorEl.editor`.
+     * 2. `div[contenteditable="true"][role="textbox"]`: Accessible ARIA textbox implementation.
+     * 3. `.chat-input [contenteditable="true"]`: Scoped chat container wrapper fallback.
+     * 4. Generic `div[contenteditable="true"]`: Unscoped fallback for layout variants.
+     */
     function findDolaEditor() {
       return document.querySelector('.tiptap.ProseMirror') ||
              document.querySelector('div[contenteditable="true"][role="textbox"]') ||
@@ -839,6 +847,13 @@
              document.querySelector('div[contenteditable="true"]');
     }
 
+    /**
+     * Asynchronous Editor Polling Monitor
+     * Polls the DOM at 120ms intervals until the editor mounts or timeout occurs.
+     * Essential for React hydration cycles when transitioning across virtual routes or new chat tabs.
+     * @param {number} timeoutMs - Maximum acquisition budget before failing gracefully.
+     * @returns {Promise<HTMLElement|null>} Resolves with DOM node or null.
+     */
     async function waitForDolaEditor(timeoutMs = 8000) {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
@@ -849,7 +864,36 @@
       return null;
     }
 
-    // Unified injection engine supporting both Tiptap ProseMirror commands and native DOM input
+    /**
+     * Unified Content Injection Engine
+     * Handles programmatic text and structured node injection into Dola's Tiptap editor.
+     * Employs a dual-strategy architecture:
+     * 
+     * Strategy A (ProseMirror Transaction Pipeline):
+     * When `editorEl.editor` is exposed, leverages ProseMirror's transaction pipeline:
+     * 1. Clears current document node state (`ed.commands.clearContent()`).
+     * 2. If `useSlashGenerateVideo` is active:
+     *    - Injects character tokens for `/generate video` to prime suggestion triggers.
+     *    - Constructs an atomic `mention` schema node with `external_skill_id: '294222337297'`.
+     *    - Splits the block (`splitBlock()`) to force a clean paragraph boundary.
+     *    - Injects multi-line prompt text formatted as `<p>` HTML elements to preserve linefeeds.
+     * 3. If raw/verbatim mode:
+     *    - Maps lines directly to `<p>` paragraphs via `setContent()`, bypassing mention injection.
+     * 
+     * Strategy B (Native DOM ContentEditable Fallback):
+     * Used when the ProseMirror instance is unexposed or uninitialized:
+     * Focuses element, executes `document.execCommand('selectAll')`, and applies `insertText`.
+     * 
+     * Post-Condition Synchronization:
+     * Dispatches synthetic `InputEvent` (`inputType: 'insertText'`) to notify React synthetic event
+     * listeners and synchronize internal component state.
+     *
+     * @param {HTMLElement} editorEl - Target contenteditable DOM container.
+     * @param {string} content - Raw or formatted text payload.
+     * @param {boolean} isBatch - Whether payload represents a batch generation sequence.
+     * @param {boolean} useSlashGenerateVideo - Whether to construct and prepend the video skill mention node.
+     * @returns {Promise<boolean>} True on verified injection.
+     */
     async function injectContentIntoEditor(editorEl, content, isBatch = false, useSlashGenerateVideo = false) {
       if (!editorEl) return false;
       const ed = editorEl.editor;
