@@ -208,9 +208,10 @@
       }
     }
     resolvedPrompt = cleanPromptText(resolvedPrompt) || 'Dola Video';
-    const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn') || cleanUrl.includes('video_gen_watermark'));
-    const watermarkType = isDynamic ? 'dynamic' : (video.watermarkType || 'none');
-    const toastLabel = isDynamic ? 'Dynamic Watermark' : '1080p Master (Raw)';
+    const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
+    const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
+    const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : (video.watermarkType || 'none'));
+    const toastLabel = isDynamic ? 'Dynamic Watermark' : (isStatic ? 'Static Watermark' : '1080p Master (Raw)');
 
     try {
       if (!isContextValid()) {
@@ -394,15 +395,16 @@
 
         a.setAttribute('data-dola-processed', 'true');
 
-        const isDynamic = href.includes('lr=video_gen_watermark_dyn') || href.includes('video_gen_watermark');
+        const isDynamic = href.includes('lr=video_gen_watermark_dyn') || href.includes('video_gen_watermark_dyn');
+        const isStatic = !isDynamic && href.includes('video_gen_watermark');
         const title = extractTitleForLink(a);
         const video = {
           url: href,
           vid: href,
           title,
           prompt: title,
-          watermarkType: isDynamic ? 'dynamic' : 'none',
-          definition: isDynamic ? 'Dynamic Watermark' : '1080P Raw',
+          watermarkType: isDynamic ? 'dynamic' : (isStatic ? 'static' : 'none'),
+          definition: isDynamic ? 'Dynamic Watermark' : (isStatic ? 'Static Watermark' : '1080P Raw'),
           source: 'dom_download_link',
           timestamp: Date.now()
         };

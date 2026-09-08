@@ -865,6 +865,12 @@ html, body {
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
+.tag-static {
+  background-color: rgba(234, 179, 8, 0.12);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
 .tag-cleaned {
   background-color: rgba(56, 189, 248, 0.12);
   color: #38bdf8;

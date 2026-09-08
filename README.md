@@ -15,12 +15,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-5e6ad2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
   <img src="https://img.shields.io/badge/Engine-In--Browser%20Offscreen-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="In-Browser Cleaner">
-  <img src="https://img.shields.io/badge/Version-v2.3.3-38bdf8?style=for-the-badge" alt="Version 2.3.3">
+  <img src="https://img.shields.io/badge/Version-v2.3.4-38bdf8?style=for-the-badge" alt="Version 2.3.4">
   <img src="https://img.shields.io/badge/Watermark_Removal-Client--Side_Only-10b981?style=for-the-badge" alt="Client-Side Only">
   <img src="https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge" alt="MIT License">
   <br>
   <a href="https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola_watermark_remove.zip">
-    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.3-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
+    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.4-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
   </a>
 </p>
 
@@ -123,7 +123,7 @@ This mode runs the complete multi-step generation workflow hands-free:
 
 ## Watermark cleaning engine
 
-ByteDance AI video generation overlays dynamic watermarks across three predictable screen quadrants:
+ByteDance AI video generation overlays either static watermarks (stationary in the bottom-right corner for the full duration) or dynamic watermarks (rotating across three screen quadrants):
 
 ```
 +---------------------------------------+
@@ -136,19 +136,20 @@ ByteDance AI video generation overlays dynamic watermarks across three predictab
 | (ry: 0.44-0.57)                       |
 |                                       |
 |                       [ Quadrant 1 ]  |  Quadrant 1: Bottom-Right
-|                       (rx: 0.68-0.98) |  (primary stamp)
+|                       (rx: 0.68-0.98) |  (stationary static watermark / primary dynamic stamp)
 |                       (ry: 0.84-0.97) |
 +---------------------------------------+
 ```
 
 ### Inpainting pipeline
 
-1. **Quadrant isolation**: Zones are bounded using relative coordinates scaled to the video canvas width and height.
-2. **Elliptical boundary feathering**: Rectangular binary masks cause boxy optical distortion. Dola Studio applies soft elliptical masks with Gaussian feathering (`sigma=16`) so pixel weights decay smoothly to 0.0 at zone boundaries.
-3. **Multiscale harmonic diffusion**: Background textures are reconstructed frame-by-frame using a 4x downsampled Laplacian boundary solver with 6 relaxation sweeps. This runs at approximately 1.1ms per frame, ensuring steady 30fps and 60fps processing.
-4. **Synchronous Web Audio stream**: An `AudioContext` taps the video source stream, piping original audio into a `MediaStreamDestinationNode`.
-5. **Hardware MP4 export**: Canvas video frames and audio tracks are captured into an active `MediaStream` and recorded via `MediaRecorder` (`video/mp4;codecs=avc1,mp4a.40.2`).
-6. **Segregated download**: The resulting MP4 blob is saved into `Downloads/Dola_Videos/cleaned/<prompt>_clean.mp4`.
+1. **Watermark classification**: Identifies whether the stream carries a static watermark (`video_gen_watermark`), dynamic rotating watermark (`video_gen_watermark_dyn`), or pristine 1080p raw master.
+2. **Quadrant isolation**: Static watermarks are continuously inpainted at Quadrant 1 (Bottom-Right) across 100% of video frames. Dynamic watermarks run an automated 12-second 3-phase rotation cycle with transition overlap buffering.
+3. **Elliptical boundary feathering**: Rectangular binary masks cause boxy optical distortion. Dola Studio applies soft elliptical masks with Gaussian feathering (`sigma=16`) so pixel weights decay smoothly to 0.0 at zone boundaries.
+4. **Multiscale harmonic diffusion**: Background textures are reconstructed frame-by-frame using a 4x downsampled Laplacian boundary solver with 6 relaxation sweeps. This runs at approximately 1.1ms per frame, ensuring steady 30fps and 60fps processing.
+5. **Synchronous Web Audio stream**: An `AudioContext` taps the video source stream, piping original audio into a `MediaStreamDestinationNode`.
+6. **Hardware MP4 export**: Canvas video frames and audio tracks are captured into an active `MediaStream` and recorded via `MediaRecorder` (`video/mp4;codecs=avc1,mp4a.40.2`).
+7. **Segregated download**: Cleaned MP4 files save into `Downloads/Dola_Videos/cleaned/<prompt>_clean.mp4`, while raw unwatermarked masters save into `Downloads/Dola_Videos/<prompt>.mp4`.
 
 ---
 

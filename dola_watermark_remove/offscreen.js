@@ -313,6 +313,9 @@
       // 5. Processing and rendering loop
       let isRendering = true;
 
+      const isDynamic = options.watermarkType === 'dynamic' || url.includes('video_gen_watermark_dyn');
+      const isStatic = options.watermarkType === 'static' || options.watermarkType === 'simple' || (!isDynamic && url.includes('video_gen_watermark'));
+
       function renderNextFrame() {
         if (!isRendering) return;
 
@@ -320,17 +323,23 @@
         ctx.drawImage(video, 0, 0, W, H);
 
         const t = video.currentTime;
-        const cycleT = t % 12.0;
 
-        // Check ByteDance quadrant schedule with transition buffering
-        if (cycleT <= 4.2 || cycleT >= 11.8) {
+        if (isStatic) {
+          // Static / simple watermark: Stationary in the bottom-right corner across all frames
           inpaintZone(ctx, zones.br);
-        }
-        if (cycleT >= 3.8 && cycleT <= 8.2) {
-          inpaintZone(ctx, zones.ml);
-        }
-        if (cycleT >= 7.8 && cycleT <= 12.2) {
-          inpaintZone(ctx, zones.tr);
+        } else {
+          // Dynamic watermark: ByteDance 12-second 3-phase quadrant rotation with overlap buffering
+          const cycleT = t % 12.0;
+
+          if (cycleT <= 4.2 || cycleT >= 11.8) {
+            inpaintZone(ctx, zones.br);
+          }
+          if (cycleT >= 3.8 && cycleT <= 8.2) {
+            inpaintZone(ctx, zones.ml);
+          }
+          if (cycleT >= 7.8 && cycleT <= 12.2) {
+            inpaintZone(ctx, zones.tr);
+          }
         }
 
         // Notify progress to sidepanel
@@ -432,14 +441,6 @@
         try { audioCtx.close(); } catch {}
       }
     }
-
-    console.log(`[Dola Offscreen Cleaner] Video cleaned successfully: ${(cleanedBlob.size / 1048576).toFixed(2)} MB`);
-    return {
-      blobUrl: cleanBlobUrl,
-      blobId,
-      sizeBytes: cleanedBlob.size,
-      mimeType
-    };
   }
 
   // Runtime message listener

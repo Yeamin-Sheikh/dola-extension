@@ -241,7 +241,7 @@ async function dolaFetchBlobUrl(cleanUrl) {
 }
 
 // Request offscreen document to clean watermark in-browser and re-encode to MP4
-async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt) {
+async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt, watermarkType = 'dynamic') {
   const offscreenReady = await ensureOffscreenDocument();
   if (!offscreenReady) return null;
 
@@ -259,7 +259,7 @@ async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt) {
       target: 'offscreen',
       type: 'CLEAN_AND_RECORD_VIDEO',
       url: cleanUrl,
-      options: { filename, prompt }
+      options: { filename, prompt, watermarkType }
     }, res => {
       if (settled) return;
       settled = true;
@@ -366,17 +366,20 @@ async function dolaHandleAutoDownload(video, force = false) {
   dolaInProgressKeys.add(mediaKey);
 
   const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
-  const filename = dolaGenerateFilename(video, isDynamic);
+  const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
+  const needsWatermarkCleaning = isDynamic || isStatic;
+  const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : 'none');
+  const filename = dolaGenerateFilename(video, needsWatermarkCleaning);
 
   let downloadTargetUrl = cleanUrl;
   let usedBlobPipeline = false;
   let blobId = null;
 
   try {
-    if (isDynamic) {
-      console.log('[Dola Downloader] Cleaning dynamic watermark in-browser for:', filename, cleanUrl);
+    if (needsWatermarkCleaning) {
+      console.log(`[Dola Downloader] Cleaning ${watermarkType} watermark in-browser for:`, filename, cleanUrl);
       try {
-        const cleanRes = await dolaCleanVideoInOffscreen(cleanUrl, filename, video.prompt);
+        const cleanRes = await dolaCleanVideoInOffscreen(cleanUrl, filename, video.prompt, watermarkType);
         if (cleanRes && cleanRes.blobUrl) {
           downloadTargetUrl = cleanRes.blobUrl;
           blobId = cleanRes.blobId;
@@ -433,7 +436,9 @@ async function dolaHandleAutoDownload(video, force = false) {
     dolaInProgressKeys.delete(mediaKey);
     dolaConfig.totalDownloaded = (dolaConfig.totalDownloaded || 0) + 1;
 
-    const resolutionLabel = isDynamic ? 'Dynamic Cleaned (In-Browser)' : '1080p Master (Raw)';
+    const resolutionLabel = isDynamic
+      ? 'Dynamic Cleaned (In-Browser)'
+      : (isStatic ? 'Static Cleaned (In-Browser)' : '1080p Master (Raw)');
 
     const historyEntry = {
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -442,7 +447,7 @@ async function dolaHandleAutoDownload(video, force = false) {
       filename,
       prompt: video.prompt || video.title || 'Dola Unwatermarked Video',
       resolution: resolutionLabel,
-      watermarkType: isDynamic ? 'dynamic' : 'none',
+      watermarkType,
       blobPipeline: usedBlobPipeline,
       timestamp: Date.now()
     };

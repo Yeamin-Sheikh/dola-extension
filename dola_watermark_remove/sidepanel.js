@@ -801,7 +801,7 @@
 
   if (headerCleanerStatus) {
     headerCleanerStatus.addEventListener('click', () => {
-      showGlobalToast('In-Browser AI Cleaner is active. Dynamic watermarks are cleaned automatically in Chrome.');
+      showGlobalToast('In-Browser AI Cleaner is active. Both static and dynamic watermarks are cleaned automatically in Chrome.');
     });
   }
 
@@ -829,14 +829,10 @@
     if (!items || items.length === 0) {
       historyList.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon-box">
-            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
-              <line x1="7" y1="2" x2="7" y2="22"/>
-              <line x1="17" y1="2" x2="17" y2="22"/>
-              <line x1="2" y1="12" x2="22" y2="12"/>
-              <line x1="2" y1="7" x2="7" y2="7"/>
-              <line x1="2" y1="17" x2="7" y2="17"/>
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="23 7 16 12 23 17 23 7"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
               <line x1="17" y1="17" x2="22" y2="17"/>
               <line x1="17" y1="7" x2="22" y2="7"/>
             </svg>
@@ -850,12 +846,20 @@
 
     historyList.innerHTML = items.slice(0, 30).map(item => {
       const isDynamic = item.watermarkType === 'dynamic' || (item.url && item.url.includes('video_gen_watermark_dyn'));
+      const isStatic = item.watermarkType === 'static' || (!isDynamic && item.url && item.url.includes('video_gen_watermark'));
       const isCleaned = (item.filename && item.filename.includes('cleaned')) ||
                         (item.filename && item.filename.includes('_clean')) ||
                         (item.resolution && item.resolution.includes('Cleaned'));
 
-      const badgeClass = isDynamic ? 'history-tag tag-dynamic' : 'history-tag tag-master';
-      const badgeLabel = isDynamic ? 'Dynamic Watermark' : '1080p Master';
+      let badgeClass = 'history-tag tag-master';
+      let badgeLabel = '1080p Master';
+      if (isDynamic) {
+        badgeClass = 'history-tag tag-dynamic';
+        badgeLabel = 'Dynamic Watermark';
+      } else if (isStatic) {
+        badgeClass = 'history-tag tag-static';
+        badgeLabel = 'Static Watermark';
+      }
       const cleanBadge = isCleaned ? `<span class="history-tag tag-cleaned">100% Cleaned</span>` : '';
 
       return `
@@ -921,7 +925,9 @@
     const item = rawLine.trim();
     if (!item) return false;
 
-    const isDyn = item.includes('video_gen_watermark_dyn') || item.includes('video_gen_watermark');
+    const isDyn = item.includes('video_gen_watermark_dyn');
+    const isStatic = !isDyn && item.includes('video_gen_watermark');
+    const watermarkType = isDyn ? 'dynamic' : (isStatic ? 'static' : 'none');
 
     // Direct video stream URL (e.g. Dola CDN MP4 link)
     if (item.includes('/video/tos/') || item.includes('mime_type=video_mp4') || item.includes('.mp4') || (item.includes('dola.dola.com') && item.includes('download=true'))) {
@@ -930,7 +936,7 @@
         video: {
           url: item,
           prompt: `Imported Video ${index + 1}`,
-          watermarkType: isDyn ? 'dynamic' : 'none',
+          watermarkType,
           source: 'manual_import'
         },
         force: true

@@ -245,13 +245,16 @@
           if (isHttpUrl(rawUrl)) {
             const prompt = promptFallback || latestSubmittedPrompt || 'Dola Video';
             const isDynWatermark = rawUrl.includes('video_gen_watermark_dyn');
+            const isStaticWatermark = !isDynWatermark && rawUrl.includes('video_gen_watermark');
+            const watermarkType = isDynWatermark ? 'dynamic' : (isStaticWatermark ? 'static' : 'none');
+            const definition = isDynWatermark ? 'Dynamic Watermark' : (isStaticWatermark ? 'Static Watermark' : '1080p Stream');
             addExtractedVideo({
               url: rawUrl,
               vid: rawUrl,
               source: 'chat_stream_link',
               prompt,
-              watermarkType: isDynWatermark ? 'dynamic' : 'none',
-              definition: isDynWatermark ? 'Dynamic Watermark' : '1080p Stream'
+              watermarkType,
+              definition
             });
           }
         }
@@ -442,6 +445,7 @@
       width: Number(meta.vwidth || meta.width || data.vwidth || data.width || 0),
       height: Number(meta.vheight || meta.height || data.vheight || data.height || 0),
       definition: meta.definition || data.definition || '1080P Raw',
+      watermarkType: 'none',
       duration: Number(meta.duration || data.duration || 0),
       codec_type: meta.codec_type || data.codec_type || '',
       poster_url: data.poster_url || data.poster || '',

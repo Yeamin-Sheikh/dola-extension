@@ -1,6 +1,6 @@
-# Dola AI video watermark remover and batch generator v2.3.3
+# Dola AI video watermark remover and batch generator v2.3.4
 
-Chrome extension sidebar for batch video creation, unwatermarked 1080p raw MP4 downloading, and 100% in-browser dynamic watermark removal on Dola AI and Doubao.
+Chrome extension sidebar for batch video creation, unwatermarked 1080p raw MP4 downloading, and 100% in-browser static and dynamic watermark removal on Dola AI and Doubao.
 
 ## Key features
 
@@ -12,11 +12,12 @@ Chrome extension sidebar for batch video creation, unwatermarked 1080p raw MP4 d
    - Automated slash command typing: Types /generate video one character at a time with a 50ms delay, converts it into the Generate Videos skill chip, moves to a new line, and submits the batch.
    - Sidebar auto-zoom: Automatically scales down the Dola webpage to your chosen percentage while the sidebar is open or on queue start, and resets back to 100% when the sidebar is closed.
    - Screen video grabber: Grab and download any finished video currently visible on screen.
-   - Download history: View captured videos with timestamps, dynamic watermark badges, cleaned status badges, and click to open in Windows Explorer.
+   - Download history: View captured videos with timestamps, static and dynamic watermark badges, cleaned status badges, and click to open in Windows Explorer.
 
-2. In-browser dynamic watermark cleaning engine
+2. In-browser watermark cleaning engine
+   - Static and dynamic watermark removal: Continuously inpaints stationary bottom-right watermarks across 100% of frames, while orchestrating 3-phase quadrant rotation with transition overlap buffering for rotating dynamic watermarks.
    - 100% self-contained: Entire watermark removal pipeline runs natively inside Chrome's offscreen engine with zero terminal commands, zero external Python processes, and no local servers.
-   - Multiscale harmonic diffusion inpainting: Reconstructs natural background textures frame-by-frame using soft Gaussian-feathered elliptical zones across all 3 ByteDance quadrants (Bottom-Right, Mid-Left, and Top-Right).
+   - Multiscale harmonic diffusion inpainting: Reconstructs natural background textures frame-by-frame using soft Gaussian-feathered elliptical zones across all ByteDance quadrants (Bottom-Right, Mid-Left, and Top-Right).
    - Audio preservation: Retains original AAC audio tracks synchronously through HTMLMediaElement capture streams.
    - Native MP4 export: Encodes clean watermark-free video directly into standard MP4 via hardware-accelerated MediaRecorder.
    - Segregated output: Cleaned videos save directly into `Downloads/Dola_Videos/cleaned/`, keeping source and output files separate.
