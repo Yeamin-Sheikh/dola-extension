@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Watermark_Removal-Client--Side_Only-10b981?style=for-the-badge" alt="Client-Side Only">
   <img src="https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge" alt="MIT License">
   <br>
-  <a href="https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola_watermark_remove.zip">
+  <a href="https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola-extension.zip">
     <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.4-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
   </a>
 </p>
@@ -69,7 +69,7 @@ Cleaned output videos are saved into a dedicated `cleaned/` subfolder, keeping o
 1. Clone or download this repository.
 2. Open Google Chrome and navigate to `chrome://extensions/`.
 3. Enable the **Developer mode** toggle in the top right corner.
-4. Click **Load unpacked** and select the `dola_watermark_remove` directory.
+4. Click **Load unpacked** and select the root repository directory.
 5. Open `https://www.dola.com/chat`.
 6. Click the extension icon in the toolbar to dock the sidebar.
 
@@ -79,7 +79,7 @@ git clone https://github.com/Yeamin-Sheikh/dola-extension.git
 
 ### Option 2: Pre-packaged ZIP
 
-1. Download **[dola_watermark_remove.zip](https://github.com/Yeamin-Sheikh/dola-extension/raw/main/dola_watermark_remove.zip)**.
+1. Download **[dola-extension.zip](https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola-extension.zip)**.
 2. Extract the archive into a folder.
 3. Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, and select the extracted directory.
 
@@ -251,36 +251,30 @@ Right-click inside any text input or selection within the side panel or popup:
 ## Repository structure
 
 ```
-dola_extension/
-├── dola_watermark_remove/          # Unpacked extension root (Manifest V3)
-│   ├── manifest.json               # Extension configuration, permissions, and worker setup
-│   ├── background.js               # Background service worker with Blob download pipeline
-│   ├── content.js                  # Automation bridge and tab communication
-│   ├── extractor.js                # Main-world network interceptor and editor injector
-│   ├── offscreen.html              # Host document for in-browser canvas cleaning
-│   ├── offscreen.js                # Multiscale harmonic diffusion inpainting engine
-│   ├── sidepanel.html              # High-density obsidian sidebar interface
-│   ├── sidepanel.css               # 125% DPI optimized design system
-│   ├── sidepanel.js                # Prompt parser, zoom coordinator, and queue runner
-│   ├── popup.html                  # Browser toolbar popup
-│   ├── popup.css                   # Toolbar popup styling
-│   ├── popup.js                    # Toolbar popup controller
-│   ├── assets/                     # Graphic assets
-│   │   ├── logo.png                # Aperture play button squircle icon
-│   │   └── banner.png              # Dark ambient HUD particle banner
-│   ├── icon16.png                  # 16x16 browser toolbar icon
-│   ├── icon32.png                  # 32x32 high-DPI icon
-│   ├── icon48.png                  # 48x48 extension management icon
-│   ├── icon128.png                 # 128x128 store display icon
-│   ├── README.md                   # Source directory documentation
-│   ├── AGENTS.md                   # Architecture specification for AI coding agents
-│   └── CUSTOMER_USER_GUIDE_AND_CHECKLIST.md # End-user verification checklist
-├── assets/                         # Repository presentation artwork
-│   ├── logo.png
-│   └── banner.png
-├── dola_watermark_remove.zip       # Pre-packaged distribution archive
-├── .gitignore                      # Git ignore patterns
-└── README.md                       # Master repository documentation
+dola-extension/
+├── manifest.json               # Extension configuration, permissions, and worker setup
+├── background.js               # Background service worker with Blob download pipeline
+├── content.js                  # Automation bridge and tab communication
+├── extractor.js                # Main-world network interceptor and editor injector
+├── offscreen.html              # Host document for in-browser canvas cleaning
+├── offscreen.js                # Multiscale harmonic diffusion inpainting engine
+├── sidepanel.html              # High-density obsidian sidebar interface
+├── sidepanel.css               # 125% DPI optimized design system
+├── sidepanel.js                # Prompt parser, zoom coordinator, and queue runner
+├── popup.html                  # Browser toolbar popup
+├── popup.css                   # Toolbar popup styling
+├── popup.js                    # Toolbar popup controller
+├── icon16.png                  # 16x16 browser toolbar icon
+├── icon32.png                  # 32x32 high-DPI icon
+├── icon48.png                  # 48x48 extension management icon
+├── icon128.png                 # 128x128 store display icon
+├── assets/                     # Graphic assets and presentation artwork
+│   ├── logo.png                # Aperture play button squircle icon
+│   └── banner.png              # Dark ambient HUD particle banner
+├── LICENSE                     # MIT License
+├── PROGRESS.md                 # Development progress and session log tracker
+├── .gitignore                  # Git ignore patterns
+└── README.md                   # Master repository documentation
 ```
 
 ---
