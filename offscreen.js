@@ -248,6 +248,12 @@
       canvas.height = H;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
+      // Attach elements to DOM so video decoders and callbacks stay active in offscreen document
+      video.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;pointer-events:none;';
+      canvas.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;pointer-events:none;';
+      document.body.appendChild(video);
+      document.body.appendChild(canvas);
+
       // Precompute the soft quadrant zones
       const zones = prepareZones(W, H);
 
@@ -312,38 +318,39 @@
 
       // 5. Processing and rendering loop
       let isRendering = true;
+      let renderTimer = null;
 
       const isDynamic = options.watermarkType === 'dynamic' || url.includes('video_gen_watermark_dyn');
       const isStatic = options.watermarkType === 'static' || options.watermarkType === 'simple' || (!isDynamic && url.includes('video_gen_watermark'));
 
-      function renderNextFrame() {
+      function renderFrame() {
         if (!isRendering) return;
 
-        // Draw current video frame to canvas
-        ctx.drawImage(video, 0, 0, W, H);
-
-        const t = video.currentTime;
-
-        if (isStatic) {
-          // Static / simple watermark: Stationary in the bottom-right corner across all frames
-          inpaintZone(ctx, zones.br);
-        } else {
-          // Dynamic watermark: ByteDance 12-second 3-phase quadrant rotation with overlap buffering
-          const cycleT = t % 12.0;
-
-          if (cycleT <= 4.2 || cycleT >= 11.8) {
-            inpaintZone(ctx, zones.br);
-          }
-          if (cycleT >= 3.8 && cycleT <= 8.2) {
-            inpaintZone(ctx, zones.ml);
-          }
-          if (cycleT >= 7.8 && cycleT <= 12.2) {
-            inpaintZone(ctx, zones.tr);
-          }
-        }
-
-        // Notify progress to background and sidepanel
         try {
+          // Draw current video frame to canvas
+          ctx.drawImage(video, 0, 0, W, H);
+
+          const t = video.currentTime;
+
+          if (isStatic) {
+            // Static / simple watermark: Stationary in the bottom-right corner across all frames
+            inpaintZone(ctx, zones.br);
+          } else {
+            // Dynamic watermark: ByteDance 12-second 3-phase quadrant rotation with overlap buffering
+            const cycleT = t % 12.0;
+
+            if (cycleT <= 4.2 || cycleT >= 11.8) {
+              inpaintZone(ctx, zones.br);
+            }
+            if (cycleT >= 3.8 && cycleT <= 8.2) {
+              inpaintZone(ctx, zones.ml);
+            }
+            if (cycleT >= 7.8 && cycleT <= 12.2) {
+              inpaintZone(ctx, zones.tr);
+            }
+          }
+
+          // Notify progress to background and sidepanel
           const pct = Math.min(99, Math.round((t / Math.max(duration, 1.0)) * 100));
           chrome.runtime.sendMessage({
             type: 'DOLA_CLEANER_PROGRESS',
@@ -355,12 +362,13 @@
             currentTime: t,
             duration
           }).catch(() => {});
-        } catch {}
+        } catch (renderErr) {
+          console.warn('[Dola Offscreen Cleaner] Frame render error:', renderErr);
+        }
 
-        if ('requestVideoFrameCallback' in video) {
-          video.requestVideoFrameCallback(renderNextFrame);
-        } else {
-          requestAnimationFrame(renderNextFrame);
+        // Active rendering timer ensures continuous frame advancement in background/offscreen documents
+        if (isRendering && !video.paused && !video.ended) {
+          renderTimer = setTimeout(renderFrame, 33);
         }
       }
 
@@ -374,11 +382,10 @@
         await video.play();
       }
 
-      if ('requestVideoFrameCallback' in video) {
-        video.requestVideoFrameCallback(renderNextFrame);
-      } else {
-        requestAnimationFrame(renderNextFrame);
-      }
+      renderFrame();
+      video.ontimeupdate = () => {
+        if (isRendering) renderFrame();
+      };
 
       // Wait for video completion
       const cleanedBlob = await new Promise((resolve, reject) => {
@@ -432,7 +439,11 @@
         mimeType
       };
     } finally {
-      // Guaranteed resource teardown: release source blob, audio context, and hardware decoders
+      // Guaranteed resource teardown: release source blob, audio context, DOM elements, and decoders
+      isRendering = false;
+      if (renderTimer) clearTimeout(renderTimer);
+      try { video.remove(); } catch {}
+      try { canvas.remove(); } catch {}
       if (sourceBlobUrl) {
         try { URL.revokeObjectURL(sourceBlobUrl); } catch {}
       }

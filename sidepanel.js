@@ -889,6 +889,10 @@
         cleanerQueueActiveTitle.textContent = msg.prompt;
         cleanerQueueActiveTitle.title = msg.prompt;
       }
+      if (cleanerQueueStatusLabel) {
+        const wmLabel = msg.watermarkType === 'static' ? 'static' : 'dynamic';
+        cleanerQueueStatusLabel.textContent = `Removing ${wmLabel} watermark...`;
+      }
       if (cleanerStatusText) {
         cleanerStatusText.textContent = `Cleaning: ${pct}%`;
       }

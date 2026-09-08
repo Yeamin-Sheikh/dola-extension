@@ -754,4 +754,21 @@ Status: Done
 - `README.md`: Bumped version badges to v2.3.5.
 - `PROGRESS.md`: Logged Session 28.
 
+### 2026-09-08, Session 29
+
+**Status:** Complete
+
+#### What changed
+- Fixed unclosed `manual-import-drawer` container in `sidepanel.html`: the missing closing `</div>` tag previously caused both `#dola-cleaner-queue-container` and `#dola-history-list` to be trapped inside the hidden drawer (`display: none`), making the active queue card and captured list invisible below `CAPTURED (1)`.
+- Replaced offscreen render loop in `offscreen.js`: attached `video` and `canvas` elements directly to `document.body` and replaced the idle-sensitive `requestVideoFrameCallback` loop with a robust 30fps timer-driven loop (`renderFrame` with `setTimeout(..., 33)` and `video.ontimeupdate`). This ensures continuous frame inpainting and progress updates in headless offscreen documents without stalling at 0%.
+- Updated `sidepanel.js` to dynamically refresh status labels (`Removing dynamic watermark...` or `Removing static watermark...`) during frame progress.
+- Corrected footer version text in `sidepanel.html` to v2.3.5.
+
+#### Files touched
+- `sidepanel.html`: Added missing `</div>` for manual import drawer, updated footer version to v2.3.5.
+- `offscreen.js`: Attached media elements to DOM, implemented timer-driven frame loop, added DOM cleanup in `finally`.
+- `sidepanel.js`: Added dynamic watermark type label update during progress.
+- `PROGRESS.md`: Logged Session 29.
+
+
 
