@@ -48,7 +48,7 @@
     return '';
   }
 
-  function showDownloadToast(title, resolution = '1080p Raw') {
+  function showDownloadToast(title, badgeText = '1080p Raw', subtext = 'Saved to Downloads folder') {
     try {
       const existing = document.getElementById('dola-auto-toast');
       if (existing) existing.remove();
@@ -75,13 +75,17 @@
         pointer-events: none;
       `;
 
+      const isQueued = subtext.includes('Removing') || subtext.includes('Cleaning');
+      const badgeColor = isQueued ? '#0284c7' : '#059669';
+      const headingText = isQueued ? 'Watermark Removal In Progress' : 'Master Video Downloaded';
+
       toast.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 2px;">
           <div style="color: #09090b; font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 8px;">
-            <span>Watermark-Free Video Downloaded</span>
-            <span style="color: #059669; font-size: 11px; font-weight: 600;">${escapeHtml(resolution)}</span>
+            <span>${headingText}</span>
+            <span style="color: ${badgeColor}; font-size: 11px; font-weight: 600;">${escapeHtml(badgeText)}</span>
           </div>
-          <span style="color: #71717a; font-size: 11px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(title || 'Saved to Downloads folder')}</span>
+          <span style="color: #71717a; font-size: 11px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(title || subtext)}</span>
         </div>
       `;
 
@@ -232,8 +236,12 @@
         if (!isContextValid() || chrome.runtime.lastError) {
           return;
         }
-        if (response?.ok && response?.downloaded && response?.notifications) {
-          showDownloadToast(resolvedPrompt, toastLabel);
+        if (response?.ok && response?.notifications) {
+          if (response?.queued) {
+            showDownloadToast(resolvedPrompt, 'In-Browser Cleaner', 'Cleaning watermark before saving...');
+          } else if (response?.downloaded) {
+            showDownloadToast(resolvedPrompt, toastLabel, 'Saved directly to Downloads folder');
+          }
         }
       });
     } catch (err) {

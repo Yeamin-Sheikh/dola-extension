@@ -22,7 +22,7 @@
           <div class="brand-text">
             <div class="brand-title-row">
               <h1 class="title">Dola Studio</h1>
-              <span class="version-badge">v2.3.4</span>
+              <span class="version-badge">v2.3.5</span>
             </div>
           </div>
         </div>
@@ -182,6 +182,24 @@
           <div class="manual-import-actions">
             <button id="btn-run-manual-import" class="btn-primary-sm" type="button">Download Videos</button>
             <span id="manual-import-status" class="manual-import-status"></span>
+          </div>
+        <!-- Active Video Processing & Queue Card -->
+        <div id="dola-cleaner-queue-container" class="queue-container" style="display: none;">
+          <div class="queue-card">
+            <div class="queue-card-header">
+              <div class="queue-status-title">
+                <span class="queue-pulsing-dot"></span>
+                <span id="cleaner-queue-status-label" class="queue-status-label">Removing watermark...</span>
+              </div>
+              <span id="cleaner-queue-count-badge" class="queue-count-badge" style="display: none;">+0 queued</span>
+            </div>
+            <div id="cleaner-queue-active-title" class="queue-active-title" title="">Preparing video...</div>
+            <div class="queue-progress-row">
+              <div class="queue-progress-track">
+                <div id="cleaner-queue-progress-bar" class="queue-progress-bar" style="width: 0%;"></div>
+              </div>
+              <span id="cleaner-queue-progress-percent" class="queue-progress-percent mono-num">0%</span>
+            </div>
           </div>
         </div>
 

@@ -342,11 +342,15 @@
           }
         }
 
-        // Notify progress to sidepanel
+        // Notify progress to background and sidepanel
         try {
           const pct = Math.min(99, Math.round((t / Math.max(duration, 1.0)) * 100));
           chrome.runtime.sendMessage({
             type: 'DOLA_CLEANER_PROGRESS',
+            jobId: options.jobId || null,
+            filename: options.filename || '',
+            prompt: options.prompt || '',
+            watermarkType: options.watermarkType || 'dynamic',
             progress: pct,
             currentTime: t,
             duration

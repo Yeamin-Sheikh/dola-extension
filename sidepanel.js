@@ -47,6 +47,14 @@
   const btnRunManualImport = document.getElementById('btn-run-manual-import');
   const manualImportStatus = document.getElementById('manual-import-status');
 
+  // DOM Elements: Cleaner Queue Card
+  const cleanerQueueContainer = document.getElementById('dola-cleaner-queue-container');
+  const cleanerQueueStatusLabel = document.getElementById('cleaner-queue-status-label');
+  const cleanerQueueCountBadge = document.getElementById('cleaner-queue-count-badge');
+  const cleanerQueueActiveTitle = document.getElementById('cleaner-queue-active-title');
+  const cleanerQueueProgressBar = document.getElementById('cleaner-queue-progress-bar');
+  const cleanerQueueProgressPercent = document.getElementById('cleaner-queue-progress-percent');
+
   // DOM Elements: Settings Section
   const settingNewChatToggle = document.getElementById('setting-new-chat-toggle');
   const settingAutoZoomToggle = document.getElementById('setting-auto-zoom-toggle');
@@ -805,18 +813,96 @@
     });
   }
 
-  // Listen for progress updates from offscreen cleaner
-  chrome.runtime.onMessage.addListener(msg => {
-    if (!msg || !msg.type) return;
-    if (msg.type === 'DOLA_CLEANER_PROGRESS') {
-      if (cleanerStatusText) {
-        cleanerStatusText.textContent = `Cleaning: ${msg.progress}%`;
-      }
-    }
-    if (msg.type === 'DOLA_VIDEO_SAVED' || msg.type === 'REFRESH_HISTORY') {
+  function renderCleanerQueue(state) {
+    if (!cleanerQueueContainer) return;
+    const queue = state?.queue || [];
+
+    if (!queue || queue.length === 0) {
+      cleanerQueueContainer.style.display = 'none';
       if (cleanerStatusText) {
         cleanerStatusText.textContent = 'In-Browser Cleaner';
       }
+      return;
+    }
+
+    cleanerQueueContainer.style.display = 'block';
+
+    const activeJob = queue.find(j => j.status === 'cleaning') || queue[0];
+    const queuedCount = queue.filter(j => j.status === 'queued').length;
+
+    if (activeJob) {
+      if (cleanerQueueActiveTitle) {
+        const titleText = activeJob.prompt || activeJob.filename || 'Dola Video';
+        cleanerQueueActiveTitle.textContent = titleText;
+        cleanerQueueActiveTitle.title = titleText;
+      }
+
+      const pct = Math.max(0, Math.min(100, Math.round(activeJob.progress || 0)));
+      if (cleanerQueueProgressBar) {
+        cleanerQueueProgressBar.style.width = `${pct}%`;
+      }
+      if (cleanerQueueProgressPercent) {
+        cleanerQueueProgressPercent.textContent = `${pct}%`;
+      }
+
+      if (cleanerQueueStatusLabel) {
+        if (activeJob.status === 'cleaning') {
+          const wmLabel = activeJob.watermarkType === 'static' ? 'Static' : 'Dynamic';
+          cleanerQueueStatusLabel.textContent = `Removing ${wmLabel} watermark...`;
+        } else if (activeJob.status === 'completed') {
+          cleanerQueueStatusLabel.textContent = 'Cleaned 100% (Saved)';
+        } else if (activeJob.status === 'failed') {
+          cleanerQueueStatusLabel.textContent = 'Inpainting failed (Skipped)';
+        } else {
+          cleanerQueueStatusLabel.textContent = 'Queued for cleaning...';
+        }
+      }
+
+      if (cleanerStatusText) {
+        cleanerStatusText.textContent = `Cleaning: ${pct}%`;
+      }
+    }
+
+    if (cleanerQueueCountBadge) {
+      if (queuedCount > 0) {
+        cleanerQueueCountBadge.style.display = 'inline-block';
+        cleanerQueueCountBadge.textContent = `+${queuedCount} queued`;
+      } else {
+        cleanerQueueCountBadge.style.display = 'none';
+      }
+    }
+  }
+
+  // Listen for progress and queue updates from offscreen cleaner and background service worker
+  chrome.runtime.onMessage.addListener(msg => {
+    if (!msg || !msg.type) return;
+
+    if (msg.type === 'DOLA_CLEANER_PROGRESS') {
+      const pct = Math.max(0, Math.min(100, Math.round(msg.progress || 0)));
+      if (cleanerQueueProgressBar) {
+        cleanerQueueProgressBar.style.width = `${pct}%`;
+      }
+      if (cleanerQueueProgressPercent) {
+        cleanerQueueProgressPercent.textContent = `${pct}%`;
+      }
+      if (cleanerQueueActiveTitle && msg.prompt) {
+        cleanerQueueActiveTitle.textContent = msg.prompt;
+        cleanerQueueActiveTitle.title = msg.prompt;
+      }
+      if (cleanerStatusText) {
+        cleanerStatusText.textContent = `Cleaning: ${pct}%`;
+      }
+      if (cleanerQueueContainer && cleanerQueueContainer.style.display === 'none') {
+        cleanerQueueContainer.style.display = 'block';
+      }
+    }
+
+    if (msg.type === 'DOLA_QUEUE_UPDATED') {
+      renderCleanerQueue(msg);
+      refreshHistory();
+    }
+
+    if (msg.type === 'DOLA_VIDEO_SAVED' || msg.type === 'REFRESH_HISTORY') {
       refreshHistory();
     }
   });
@@ -901,6 +987,11 @@
     safeRuntime.sendMessage({ type: 'GET_DOWNLOADER_STATUS' }, res => {
       if (res && res.ok) {
         renderHistory(res.history || []);
+      }
+    });
+    safeRuntime.sendMessage({ type: 'GET_CLEANER_QUEUE' }, res => {
+      if (res && res.ok) {
+        renderCleanerQueue(res);
       }
     });
   }

@@ -791,6 +791,107 @@ html, body {
   color: var(--text-muted);
 }
 
+/* Active Video Processing & Queue Card */
+.queue-container {
+  flex-shrink: 0;
+  padding: 6px 8px 4px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.queue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.queue-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.queue-status-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue-pulsing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+  animation: queuePulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes queuePulse {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1.15); }
+}
+
+.queue-status-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.2px;
+}
+
+.queue-count-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  background-color: rgba(56, 189, 248, 0.15);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 10px;
+}
+
+.queue-active-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.queue-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queue-progress-track {
+  flex: 1;
+  height: 5px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.queue-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  border-radius: 3px;
+  transition: width 0.12s linear;
+}
+
+.queue-progress-percent {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7dd3fc;
+  min-width: 32px;
+  text-align: right;
+}
+
 /* Video Items List */
 .history-list {
   flex: 1;

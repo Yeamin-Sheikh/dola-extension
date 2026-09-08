@@ -240,8 +240,39 @@ async function dolaFetchBlobUrl(cleanUrl) {
   });
 }
 
+// --- In-Browser Cleaner Sequential Queue ---
+const dolaCleanerQueue = [];
+let isCleanerProcessing = false;
+
+function dolaGetQueueState() {
+  return {
+    queue: dolaCleanerQueue.map(item => ({
+      id: item.id,
+      prompt: item.prompt,
+      filename: item.filename,
+      watermarkType: item.watermarkType,
+      status: item.status,
+      progress: item.progress || 0,
+      createdAt: item.createdAt,
+      error: item.error || null
+    })),
+    isProcessing: isCleanerProcessing
+  };
+}
+
+function dolaBroadcastQueueUpdate() {
+  try {
+    chrome.runtime.sendMessage({
+      type: 'DOLA_QUEUE_UPDATED',
+      ...dolaGetQueueState()
+    }, () => {
+      if (chrome.runtime.lastError) {}
+    });
+  } catch {}
+}
+
 // Request offscreen document to clean watermark in-browser and re-encode to MP4
-async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt, watermarkType = 'dynamic') {
+async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt, watermarkType = 'dynamic', jobId = null) {
   const offscreenReady = await ensureOffscreenDocument();
   if (!offscreenReady) return null;
 
@@ -250,16 +281,16 @@ async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt, watermarkTy
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true;
-        console.warn('[Dola Downloader] In-browser video cleaner timed out after 60s, falling back to direct stream');
+        console.warn('[Dola Downloader] In-browser video cleaner timed out after 90s');
         resolve(null);
       }
-    }, 60000);
+    }, 90000);
 
     chrome.runtime.sendMessage({
       target: 'offscreen',
       type: 'CLEAN_AND_RECORD_VIDEO',
       url: cleanUrl,
-      options: { filename, prompt, watermarkType }
+      options: { filename, prompt, watermarkType, jobId }
     }, res => {
       if (settled) return;
       settled = true;
@@ -273,6 +304,121 @@ async function dolaCleanVideoInOffscreen(cleanUrl, filename, prompt, watermarkTy
       }
     });
   });
+}
+
+async function dolaProcessCleanerQueue() {
+  if (isCleanerProcessing) return;
+  isCleanerProcessing = true;
+
+  while (dolaCleanerQueue.length > 0) {
+    const job = dolaCleanerQueue.find(j => j.status === 'queued');
+    if (!job) break;
+
+    job.status = 'cleaning';
+    job.progress = 0;
+    dolaBroadcastQueueUpdate();
+
+    console.log(`[Dola Downloader] Cleaner Queue: Starting ${job.watermarkType} inpainting for:`, job.filename);
+
+    let cleanRes = null;
+    try {
+      cleanRes = await dolaCleanVideoInOffscreen(job.cleanUrl, job.filename, job.prompt, job.watermarkType, job.id);
+    } catch (err) {
+      console.warn('[Dola Downloader] Cleaner Queue inpainting error:', err);
+    }
+
+    if (cleanRes && cleanRes.blobUrl) {
+      const downloadTargetUrl = cleanRes.blobUrl;
+      const blobId = cleanRes.blobId;
+
+      dolaRegisterPendingDownload(downloadTargetUrl, job.filename);
+
+      try {
+        const downloadId = await chrome.downloads.download({
+          url: downloadTargetUrl,
+          filename: job.filename,
+          saveAs: false,
+          conflictAction: 'uniquify'
+        });
+
+        if (downloadId) {
+          dolaPendingFilenamesById.set(downloadId, job.filename);
+        }
+        if (blobId) {
+          activeBlobDownloads.set(downloadId, blobId);
+        }
+
+        dolaDownloadedKeys.add(job.canonicalKey);
+        dolaDownloadedKeys.add(job.mediaKey);
+        dolaDownloadedKeys.add(job.cleanUrl);
+        dolaInProgressKeys.delete(job.canonicalKey);
+        dolaInProgressKeys.delete(job.mediaKey);
+        dolaConfig.totalDownloaded = (dolaConfig.totalDownloaded || 0) + 1;
+
+        const resolutionLabel = job.watermarkType === 'dynamic'
+          ? 'Dynamic Cleaned (In-Browser)'
+          : 'Static Cleaned (In-Browser)';
+
+        const historyEntry = {
+          id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          downloadId,
+          url: job.cleanUrl,
+          filename: job.filename,
+          prompt: job.prompt,
+          resolution: resolutionLabel,
+          watermarkType: job.watermarkType,
+          blobPipeline: true,
+          timestamp: Date.now()
+        };
+
+        dolaDownloadHistory.unshift(historyEntry);
+        await dolaSaveState();
+        dolaUpdateBadge();
+
+        job.status = 'completed';
+        job.progress = 100;
+        dolaBroadcastQueueUpdate();
+
+        if (dolaConfig.notifications) {
+          try {
+            chrome.notifications.create({
+              type: 'basic',
+              iconUrl: 'icon128.png',
+              title: 'Watermark Removed and Saved',
+              message: `${job.prompt.substring(0, 50)}...\nSaved to Downloads/${job.filename}`,
+              priority: 1
+            });
+          } catch {}
+        }
+      } catch (dlErr) {
+        console.warn('[Dola Downloader] Cleaner Queue download failed:', dlErr);
+        job.status = 'failed';
+        job.error = dlErr.message || String(dlErr);
+        dolaInProgressKeys.delete(job.canonicalKey);
+        dolaInProgressKeys.delete(job.mediaKey);
+        dolaBroadcastQueueUpdate();
+      }
+    } else {
+      // Inpainting failed or timed out.
+      // Strict rule: do not fall back to downloading dirty watermarked video.
+      console.warn(`[Dola Downloader] Cleaner inpainting failed for: ${job.filename}. Suppressing raw download to prevent saving watermarked video.`);
+      job.status = 'failed';
+      job.error = 'Inpainting failed or timed out';
+      dolaInProgressKeys.delete(job.canonicalKey);
+      dolaInProgressKeys.delete(job.mediaKey);
+      dolaBroadcastQueueUpdate();
+    }
+
+    // Keep completed or failed status visible in UI for 1.2s before advancing
+    await new Promise(r => setTimeout(r, 1200));
+    const idx = dolaCleanerQueue.indexOf(job);
+    if (idx !== -1) {
+      dolaCleanerQueue.splice(idx, 1);
+    }
+    dolaBroadcastQueueUpdate();
+  }
+
+  isCleanerProcessing = false;
 }
 
 function dolaRevokeBlobUrl(blobId, blobUrl) {
@@ -360,10 +506,10 @@ async function dolaHandleAutoDownload(video, force = false) {
     if (dolaInProgressKeys.has(canonicalKey) || dolaInProgressKeys.has(mediaKey)) {
       return { ok: true, downloaded: false, reason: 'Download already in progress' };
     }
+    if (dolaCleanerQueue.some(j => j.canonicalKey === canonicalKey || j.cleanUrl === cleanUrl)) {
+      return { ok: true, downloaded: false, reason: 'Already in cleaning queue' };
+    }
   }
-
-  dolaInProgressKeys.add(canonicalKey);
-  dolaInProgressKeys.add(mediaKey);
 
   const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
   const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
@@ -371,39 +517,62 @@ async function dolaHandleAutoDownload(video, force = false) {
   const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : 'none');
   const filename = dolaGenerateFilename(video, needsWatermarkCleaning);
 
+  if (needsWatermarkCleaning) {
+    // Watermarked video: NEVER download raw. Route into sequential queue.
+    dolaInProgressKeys.add(canonicalKey);
+    dolaInProgressKeys.add(mediaKey);
+
+    const job = {
+      id: `clean_job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      video,
+      force,
+      cleanUrl,
+      canonicalKey,
+      mediaKey,
+      filename,
+      prompt: video.prompt || video.title || 'Dola Video',
+      watermarkType,
+      status: 'queued',
+      progress: 0,
+      createdAt: Date.now()
+    };
+
+    dolaCleanerQueue.push(job);
+    dolaBroadcastQueueUpdate();
+    dolaProcessCleanerQueue();
+
+    return {
+      ok: true,
+      queued: true,
+      jobId: job.id,
+      prompt: job.prompt,
+      watermarkType,
+      notifications: dolaConfig.notifications
+    };
+  }
+
+  // Pristine 1080p master without watermark: download directly
+  dolaInProgressKeys.add(canonicalKey);
+  dolaInProgressKeys.add(mediaKey);
+
   let downloadTargetUrl = cleanUrl;
   let usedBlobPipeline = false;
   let blobId = null;
 
   try {
-    if (needsWatermarkCleaning) {
-      console.log(`[Dola Downloader] Cleaning ${watermarkType} watermark in-browser for:`, filename, cleanUrl);
+    console.log('[Dola Downloader] Downloading raw unwatermarked MP4:', filename, cleanUrl);
+    const isByteDanceCdn = /v16-dola|tos-mya|byteintl|byteoversea|ibytedtos|volces/i.test(cleanUrl);
+    if (!isByteDanceCdn) {
       try {
-        const cleanRes = await dolaCleanVideoInOffscreen(cleanUrl, filename, video.prompt, watermarkType);
-        if (cleanRes && cleanRes.blobUrl) {
-          downloadTargetUrl = cleanRes.blobUrl;
-          blobId = cleanRes.blobId;
+        const blobInfo = await dolaFetchBlobUrl(cleanUrl);
+        if (blobInfo && blobInfo.blobUrl) {
+          downloadTargetUrl = blobInfo.blobUrl;
+          blobId = blobInfo.blobId;
           usedBlobPipeline = true;
-          console.log('[Dola Downloader] In-browser cleaned MP4 blob ready:', downloadTargetUrl);
+          console.log('[Dola Downloader] In-memory blob URL acquired:', downloadTargetUrl);
         }
-      } catch (err) {
-        console.warn('[Dola Downloader] In-browser cleaner exception, falling back to direct stream:', err);
-      }
-    } else {
-      console.log('[Dola Downloader] Downloading raw unwatermarked MP4:', filename, cleanUrl);
-      const isByteDanceCdn = /v16-dola|tos-mya|byteintl|byteoversea|ibytedtos|volces/i.test(cleanUrl);
-      if (!isByteDanceCdn) {
-        try {
-          const blobInfo = await dolaFetchBlobUrl(cleanUrl);
-          if (blobInfo && blobInfo.blobUrl) {
-            downloadTargetUrl = blobInfo.blobUrl;
-            blobId = blobInfo.blobId;
-            usedBlobPipeline = true;
-            console.log('[Dola Downloader] In-memory blob URL acquired:', downloadTargetUrl);
-          }
-        } catch (e) {
-          console.warn('[Dola Downloader] Blob creation skipped, using direct stream:', e);
-        }
+      } catch (e) {
+        console.warn('[Dola Downloader] Blob creation skipped, using direct stream:', e);
       }
     }
 
@@ -436,9 +605,7 @@ async function dolaHandleAutoDownload(video, force = false) {
     dolaInProgressKeys.delete(mediaKey);
     dolaConfig.totalDownloaded = (dolaConfig.totalDownloaded || 0) + 1;
 
-    const resolutionLabel = isDynamic
-      ? 'Dynamic Cleaned (In-Browser)'
-      : (isStatic ? 'Static Cleaned (In-Browser)' : '1080p Master (Raw)');
+    const resolutionLabel = '1080p Master (Raw)';
 
     const historyEntry = {
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -447,7 +614,7 @@ async function dolaHandleAutoDownload(video, force = false) {
       filename,
       prompt: video.prompt || video.title || 'Dola Unwatermarked Video',
       resolution: resolutionLabel,
-      watermarkType,
+      watermarkType: 'none',
       blobPipeline: usedBlobPipeline,
       timestamp: Date.now()
     };
@@ -461,7 +628,7 @@ async function dolaHandleAutoDownload(video, force = false) {
         chrome.notifications.create({
           type: 'basic',
           iconUrl: 'icon128.png',
-          title: '🎬 Video Downloaded (No Watermark)!',
+          title: 'Master Video Downloaded',
           message: `${(historyEntry.prompt).substring(0, 50)}...\nSaved directly to Downloads/${filename}`,
           priority: 1
         });
@@ -528,6 +695,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       history: dolaDownloadHistory,
       totalDownloaded: dolaConfig.totalDownloaded || dolaDownloadHistory.length
     });
+    return false;
+  }
+
+  if (message.type === 'GET_CLEANER_QUEUE') {
+    sendResponse({
+      ok: true,
+      ...dolaGetQueueState()
+    });
+    return false;
+  }
+
+  if (message.type === 'DOLA_CLEANER_PROGRESS') {
+    if (message.jobId) {
+      const activeJob = dolaCleanerQueue.find(j => j.id === message.jobId && j.status === 'cleaning');
+      if (activeJob) {
+        activeJob.progress = message.progress;
+      }
+    }
     return false;
   }
 

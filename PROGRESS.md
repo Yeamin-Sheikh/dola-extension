@@ -730,3 +730,28 @@ Status: Done
 - `README.md`: Updated to document the flat repository structure.
 - `PROGRESS.md`: Logged Session 27.
 
+### 2026-09-08, Session 28
+
+**Status:** Complete
+
+#### What changed
+- Added sequential FIFO video cleaner queue (`dolaCleanerQueue`) and queue worker in `background.js`. Videos requiring watermark removal are queued and processed one by one, eliminating concurrency collisions and preventing browser frame drops across batch video captures.
+- Prevented raw watermarked video downloads: if a video has a watermark (`video_gen_watermark_dyn` or `video_gen_watermark`), the extension enqueues and saves only the cleaned output. If inpainting fails, the raw watermarked stream is never downloaded to disk. Pristine 1080p master streams continue to download directly as unwatermarked originals.
+- Added live inpainting progress tracking and queue visualization in `sidepanel.html` and `sidepanel.css`: provides an active processing card with real-time numeric percentage, animated gradient progress bar, and queued count badge.
+- Updated `sidepanel.js` to handle `DOLA_CLEANER_PROGRESS` and `DOLA_QUEUE_UPDATED` events, rendering active progress and queue depth.
+- Updated `offscreen.js` to broadcast job identifiers and progress details.
+- Updated `content.js` to distinguish between queued watermark removal and completed master downloads in user notifications.
+- Bumped extension version to v2.3.5 across `manifest.json`, `sidepanel.html`, and `README.md`.
+
+#### Files touched
+- `background.js`: Implemented sequential queue, `dolaProcessCleanerQueue`, queue broadcast, and eliminated raw watermarked fallback downloads.
+- `offscreen.js`: Added job metadata in `DOLA_CLEANER_PROGRESS`.
+- `sidepanel.html`: Added active processing card markup `#dola-cleaner-queue-container`.
+- `sidepanel.css`: Added styles for active processing card, progress bar track, pulsing status dot, and queue counter badges.
+- `sidepanel.js`: Added `renderCleanerQueue`, progress listener updates, and queue polling on load.
+- `content.js`: Updated download notifications to indicate queued inpainting.
+- `manifest.json`: Bumped version to 2.3.5.
+- `README.md`: Bumped version badges to v2.3.5.
+- `PROGRESS.md`: Logged Session 28.
+
+
