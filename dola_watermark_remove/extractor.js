@@ -19,10 +19,12 @@
   } catch {}
 
   if (window.__DOLA_EXTRACTOR_HOOKS_INSTALLED__) {
-    console.log('[Dola Extractor] Stream interceptor already installed. Refreshing automation listeners.');
-    if (typeof attachAutomationListeners === 'function') {
-      attachAutomationListeners();
-    }
+    // Already installed in this page — the original listeners from the first execution
+    // are still registered and functional. Do NOT call attachAutomationListeners() here
+    // because this re-injected IIFE scope has let/const variables in TDZ (never initialized
+    // due to the early return), and the hoisted function would close over those dead references,
+    // replacing working listeners with broken ones that throw ReferenceError.
+    console.log('[Dola Extractor] Stream interceptor already installed. Skipping re-initialization.');
     return;
   }
   window.__DOLA_EXTRACTOR_HOOKS_INSTALLED__ = true;
