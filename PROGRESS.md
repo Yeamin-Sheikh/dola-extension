@@ -714,7 +714,7 @@ Status: Done
 - Moved `.git` from `dola_extension/.git` to root `.git`, maintaining the complete commit history and remote origin pointing to `https://github.com/Yeamin-Sheikh/dola-extension.git` on branch `main`.
 - Replaced obsolete root README with the comprehensive documentation and updated install instructions to reference loading the root folder directly.
 - Packaged clean release archive `dola-extension.zip` and uploaded to GitHub Release `v2.3.4`.
-- Verified all JS files with `node -c` (zero errors), verified zero IDM mentions, and pushed flattened layout to GitHub.
+- Verified all JS files with `node -c` (zero errors), verified zero third-party download manager mentions, and pushed flattened layout to GitHub.
 
 #### Files touched
 - `manifest.json`: Promoted to root.
