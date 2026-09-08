@@ -679,6 +679,111 @@ async function dolaAutoInjectIntoExistingTabs() {
   }
 }
 
+/**
+ * Opens Windows File Explorer directly to the cleaned videos folder.
+ * Uses a multi-tier fallback:
+ * 1. Checks in-memory history for existing cleaned video on disk.
+ * 2. Queries Chrome's download database for existing files in cleaned/.
+ * 3. Queries Chrome's download database for files in the parent download subfolder.
+ * 4. Generates an anchor file in the cleaned directory via data URI to create and focus the folder.
+ * 5. Falls back to default downloads directory if all else fails.
+ */
+async function dolaOpenCleanedFolder() {
+  const folder = (dolaConfig.subfolder || 'Dola_Videos')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/[*?"<>|:]/g, '_');
+  const targetPrefix = folder ? `${folder}/cleaned` : 'cleaned';
+
+  // Tier 1: Check in-memory history for a completed cleaned video download that still exists
+  for (const entry of dolaDownloadHistory) {
+    if (entry.downloadId && entry.filename && entry.filename.includes('cleaned')) {
+      try {
+        const results = await chrome.downloads.search({ id: entry.downloadId });
+        if (results && results.length > 0 && results[0].exists && results[0].state === 'complete') {
+          chrome.downloads.show(results[0].id);
+          return { ok: true, source: 'history', id: results[0].id };
+        }
+      } catch (e) {
+        console.warn('[Dola Downloader] History download verification error:', e);
+      }
+    }
+  }
+
+  // Tier 2: Search Chrome downloads database for existing files in the cleaned folder
+  try {
+    const searchResults = await chrome.downloads.search({
+      query: ['cleaned'],
+      state: 'complete',
+      orderBy: ['-startTime'],
+      limit: 30
+    });
+
+    const match = searchResults.find(r => r.exists && (r.filename.includes('cleaned') || (folder && r.filename.includes(folder))));
+    if (match) {
+      chrome.downloads.show(match.id);
+      return { ok: true, source: 'search_cleaned', id: match.id };
+    }
+  } catch (e) {
+    console.warn('[Dola Downloader] Search cleaned error:', e);
+  }
+
+  // Tier 3: Search Chrome downloads database for any files in the parent folder
+  try {
+    const searchFolder = await chrome.downloads.search({
+      query: [folder || 'Dola_Videos'],
+      state: 'complete',
+      orderBy: ['-startTime'],
+      limit: 20
+    });
+    const folderMatch = searchFolder.find(r => r.exists && r.filename.includes(folder || 'Dola_Videos'));
+    if (folderMatch) {
+      chrome.downloads.show(folderMatch.id);
+      return { ok: true, source: 'search_subfolder', id: folderMatch.id };
+    }
+  } catch (e) {
+    console.warn('[Dola Downloader] Search subfolder error:', e);
+  }
+
+  // Tier 4: If no existing file is found, create an anchor file in the cleaned directory
+  // This writes Downloads/<subfolder>/cleaned/DOLA_CLEANED_VIDEOS.txt and opens File Explorer directly on it
+  try {
+    const anchorFilename = `${targetPrefix}/DOLA_CLEANED_VIDEOS.txt`;
+    const anchorContent = 'Dola Video Studio - Cleaned Videos Directory\r\nWatermark-free videos will be saved in this folder automatically.\r\n';
+    const dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(anchorContent);
+
+    dolaRegisterPendingDownload(dataUrl, anchorFilename);
+
+    const anchorDownloadId = await chrome.downloads.download({
+      url: dataUrl,
+      filename: anchorFilename,
+      saveAs: false,
+      conflictAction: 'overwrite'
+    });
+
+    if (anchorDownloadId) {
+      dolaPendingFilenamesById.set(anchorDownloadId, anchorFilename);
+
+      // Wait a short moment for Windows filesystem write to finish
+      await new Promise(r => setTimeout(r, 350));
+      chrome.downloads.show(anchorDownloadId);
+      return { ok: true, source: 'anchor_file', id: anchorDownloadId };
+    }
+  } catch (err) {
+    console.warn('[Dola Downloader] Anchor download failed:', err);
+  }
+
+  // Tier 5: Final fallback to default downloads folder
+  try {
+    chrome.downloads.showDefaultFolder();
+    return { ok: true, source: 'default_folder' };
+  } catch (err) {
+    console.warn('[Dola Downloader] showDefaultFolder failed:', err);
+    return { ok: false, error: err.message || String(err) };
+  }
+}
+
 // Runtime messaging
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
@@ -752,15 +857,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'OPEN_CLEANED_FOLDER' || message.type === 'OPEN_DOWNLOAD_FOLDER') {
+    dolaOpenCleanedFolder().then(res => {
+      sendResponse(res || { ok: true });
+    });
+    return true;
+  }
+
   if (message.type === 'SHOW_DOWNLOAD_ITEM') {
     if (message.downloadId) {
-      chrome.downloads.show(message.downloadId);
-      sendResponse({ ok: true });
+      try {
+        chrome.downloads.search({ id: Number(message.downloadId) }, (results) => {
+          if (results && results.length > 0 && results[0].exists) {
+            chrome.downloads.show(Number(message.downloadId));
+            sendResponse({ ok: true });
+          } else {
+            dolaOpenCleanedFolder().then(res => sendResponse(res || { ok: true }));
+          }
+        });
+        return true;
+      } catch {
+        dolaOpenCleanedFolder().then(res => sendResponse(res || { ok: true }));
+        return true;
+      }
     } else {
-      chrome.downloads.showDefaultFolder();
-      sendResponse({ ok: true });
+      dolaOpenCleanedFolder().then(res => sendResponse(res || { ok: true }));
+      return true;
     }
-    return false;
   }
 
   if (message.type === 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD') {

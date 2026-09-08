@@ -328,6 +328,27 @@ input:checked + .slider:before {
   background-color: var(--btn-secondary-hover);
 }
 
+.btn-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #0284c7;
+}
+
+.folder-preview-text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.preview-folder-path {
+  color: #0284c7;
+  font-family: monospace;
+}
+
 /* History Section */
 .history-section {
   border-bottom: none;
@@ -338,6 +359,27 @@ input:checked + .slider:before {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-text-cyan {
+  background: none;
+  border: none;
+  color: #0284c7;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: opacity 0.15s ease;
+}
+
+.btn-text-cyan:hover {
+  opacity: 0.75;
 }
 
 .history-title {

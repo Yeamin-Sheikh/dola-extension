@@ -782,3 +782,34 @@ Status: Done
 #### Files touched
 - `dola-extension.zip`: Generated distribution archive.
 - `PROGRESS.md`: Logged Session 30.
+
+### 2026-09-09, Session 31
+
+**Status:** Complete
+
+#### What changed
+- Added one-click "Open folder location" options in `sidepanel.html`, `sidepanel.js`, `popup.html`, and `popup.js`:
+  - Captured section header now has a dedicated `[Folder]` button to reveal the cleaned videos directory in Windows File Explorer immediately.
+  - History empty-state now provides an `Open Cleaned Folder` button so users can locate and verify the download target before running generations.
+  - Settings tab `Downloads & storage` now has an `Open Folder` button directly next to Save, plus a live path preview displaying the exact destination (`Downloads/<subfolder>/cleaned/`).
+  - Extension popup now contains matching `Open Folder` buttons in the destination folder group and history header.
+- Implemented multi-tier folder resolution in `background.js` (`dolaOpenCleanedFolder`):
+  - Tier 1: Checks in-memory download history for a completed cleaned video still present on disk.
+  - Tier 2: Queries Chrome download records for any existing file in the `cleaned` subfolder.
+  - Tier 3: Queries Chrome download records for files in the parent download directory.
+  - Tier 4: Generates a lightweight directory anchor file (`Downloads/<subfolder>/cleaned/DOLA_CLEANED_VIDEOS.txt`) via Data URI download to guarantee Windows File Explorer opens directly inside the cleaned folder even if no videos have been downloaded yet.
+  - Tier 5: Falls back to the default downloads folder if file manager focus fails.
+- Rebuilt `dola-extension.zip` distribution archive with the updated files.
+
+#### Files touched
+- `background.js`: Implemented `dolaOpenCleanedFolder` and `OPEN_CLEANED_FOLDER` message handler.
+- `sidepanel.html`: Added Open Folder buttons in Captured header, empty state, and Settings card with path preview.
+- `sidepanel.css`: Added styles for folder action buttons, tiny icons, and path preview text.
+- `sidepanel.js`: Added folder button click handlers with "Opening..." feedback and dynamic path preview updater.
+- `popup.html`: Added Open Folder buttons in destination section and history header with path preview.
+- `popup.css`: Added styles for popup folder buttons and preview text.
+- `popup.js`: Added popup folder button event listeners and path preview logic.
+- `README.md`: Updated key features and settings reference tables.
+- `dola-extension.zip`: Re-packaged distribution zip.
+- `PROGRESS.md`: Logged Session 31.
+

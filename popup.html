@@ -75,6 +75,11 @@
                 <div class="folder-input-group">
                     <input type="text" id="dola-subfolder-input" class="input-text" placeholder="Folder: Dola_Videos" spellcheck="false">
                     <button id="btn-dola-save-folder" class="btn-secondary" type="button">Save</button>
+                    <button id="btn-dola-open-folder" class="btn-secondary btn-folder" type="button" title="Open cleaned videos folder in Windows File Explorer">Open Folder</button>
+                </div>
+                <div class="folder-preview-text">
+                    <span>Cleaned videos: </span>
+                    <span class="preview-folder-path" id="popup-cleaned-path-preview">Downloads/Dola_Videos/cleaned/</span>
                 </div>
             </div>
         </section>
@@ -83,7 +88,10 @@
         <section class="section history-section">
             <div class="history-header">
                 <h3 class="history-title">Download History (<span id="dola-history-count">0</span>)</h3>
-                <button id="btn-dola-clear-history" class="btn-text-danger" type="button">Clear</button>
+                <div class="history-actions">
+                    <button id="btn-popup-open-folder" class="btn-text-cyan" type="button" title="Open cleaned videos folder in Windows File Explorer">Open Folder</button>
+                    <button id="btn-dola-clear-history" class="btn-text-danger" type="button">Clear</button>
+                </div>
             </div>
 
             <div class="history-list divide-y" id="dola-history-list">

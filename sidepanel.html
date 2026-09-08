@@ -165,7 +165,13 @@
             <span class="section-label">Captured (<span id="dola-history-count" class="mono-num">0</span>)</span>
           </div>
           <div class="history-actions-row">
-            <button id="btn-toggle-manual-import" class="btn-text-cyan" type="button">+ Import Links</button>
+            <button id="btn-open-cleaned-folder-captured" class="btn-action-folder" type="button" title="Open cleaned videos folder in Windows File Explorer">
+              <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Folder</span>
+            </button>
+            <button id="btn-toggle-manual-import" class="btn-text-cyan" type="button">+ Import</button>
             <button id="btn-dola-clear-history" class="btn-text-danger" type="button">Clear</button>
           </div>
         </div>
@@ -221,6 +227,12 @@
             </div>
             <span class="empty-state-title">No videos downloaded yet</span>
             <span class="empty-state-desc">Captured unwatermarked 1080p MP4s will appear here automatically.</span>
+            <button id="btn-empty-open-folder" class="btn-action-folder btn-empty-action" type="button" title="Open cleaned videos folder in Windows File Explorer">
+              <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Open Cleaned Folder</span>
+            </button>
           </div>
         </div>
       </section>
@@ -270,6 +282,16 @@
               >
             </div>
             <button id="btn-dola-save-folder" class="btn-sm" type="button">Save</button>
+            <button id="btn-dola-open-folder-settings" class="btn-sm btn-folder-action" type="button" title="Open cleaned videos folder in Windows File Explorer">
+              <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Open Folder</span>
+            </button>
+          </div>
+          <div class="folder-path-preview">
+            <span class="preview-label">Cleaned videos destination:</span>
+            <span class="preview-path mono-font" id="settings-cleaned-path-preview">Downloads/Dola_Videos/cleaned/</span>
           </div>
         </div>
 

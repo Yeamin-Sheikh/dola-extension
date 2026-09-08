@@ -65,6 +65,10 @@
   const autoDownloadToggle = document.getElementById('dola-auto-download-toggle');
   const subfolderInput = document.getElementById('dola-subfolder-input');
   const saveFolderBtn = document.getElementById('btn-dola-save-folder');
+  const btnOpenCleanedFolderCaptured = document.getElementById('btn-open-cleaned-folder-captured');
+  const btnEmptyOpenFolder = document.getElementById('btn-empty-open-folder');
+  const btnDolaOpenFolderSettings = document.getElementById('btn-dola-open-folder-settings');
+  const settingsCleanedPathPreview = document.getElementById('settings-cleaned-path-preview');
   const settingNotificationsToggle = document.getElementById('setting-notifications-toggle');
 
   // DOM Elements: Context Menu
@@ -729,11 +733,38 @@
     });
   }
 
+  function updateCleanedPathPreview() {
+    if (settingsCleanedPathPreview && subfolderInput) {
+      const folder = (subfolderInput.value || 'Dola_Videos').trim().replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
+      settingsCleanedPathPreview.textContent = `Downloads/${folder}/cleaned/`;
+    }
+  }
+
+  function triggerOpenFolder(triggerBtn) {
+    if (!triggerBtn) return;
+    const originalContent = triggerBtn.innerHTML;
+    triggerBtn.disabled = true;
+    triggerBtn.innerHTML = `
+      <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      <span>Opening...</span>
+    `;
+
+    safeRuntime.sendMessage({ type: 'OPEN_CLEANED_FOLDER' }, () => {
+      setTimeout(() => {
+        triggerBtn.disabled = false;
+        triggerBtn.innerHTML = originalContent;
+      }, 1200);
+    });
+  }
+
   function saveSubfolderConfig() {
     const raw = (subfolderInput.value || 'Dola_Videos').trim();
     const folder = raw.replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
     subfolderInput.value = folder;
     currentSettings.subfolder = folder;
+    updateCleanedPathPreview();
 
     safeRuntime.sendMessage({
       type: 'UPDATE_DOWNLOADER_CONFIG',
@@ -745,6 +776,8 @@
   }
 
   saveFolderBtn.addEventListener('click', saveSubfolderConfig);
+
+  subfolderInput.addEventListener('input', updateCleanedPathPreview);
 
   subfolderInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -758,6 +791,18 @@
       saveSubfolderConfig();
     }
   });
+
+  if (btnOpenCleanedFolderCaptured) {
+    btnOpenCleanedFolderCaptured.addEventListener('click', () => triggerOpenFolder(btnOpenCleanedFolderCaptured));
+  }
+
+  if (btnDolaOpenFolderSettings) {
+    btnDolaOpenFolderSettings.addEventListener('click', () => triggerOpenFolder(btnDolaOpenFolderSettings));
+  }
+
+  if (btnEmptyOpenFolder) {
+    btnEmptyOpenFolder.addEventListener('click', () => triggerOpenFolder(btnEmptyOpenFolder));
+  }
 
   // --- 9. Action: Download Video on Screen ---
   btnDownloadScreen.addEventListener('click', () => {
@@ -919,18 +964,32 @@
     if (!items || items.length === 0) {
       historyList.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <polygon points="23 7 16 12 23 17 23 7"/>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          <div class="empty-state-icon-box">
+            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+              <line x1="7" y1="2" x2="7" y2="22"/>
+              <line x1="17" y1="2" x2="17" y2="22"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <line x1="2" y1="7" x2="7" y2="7"/>
+              <line x1="2" y1="17" x2="7" y2="17"/>
               <line x1="17" y1="17" x2="22" y2="17"/>
               <line x1="17" y1="7" x2="22" y2="7"/>
             </svg>
           </div>
           <span class="empty-state-title">No videos downloaded yet</span>
           <span class="empty-state-desc">Captured unwatermarked 1080p MP4s will appear here automatically.</span>
+          <button id="btn-empty-open-folder" class="btn-action-folder btn-empty-action" type="button" title="Open cleaned videos folder in Windows File Explorer">
+            <svg class="btn-tiny-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Open Cleaned Folder</span>
+          </button>
         </div>
       `;
+      const emptyBtn = historyList.querySelector('#btn-empty-open-folder');
+      if (emptyBtn) {
+        emptyBtn.addEventListener('click', () => triggerOpenFolder(emptyBtn));
+      }
       return;
     }
 
@@ -1446,12 +1505,14 @@
             autoDownloadToggle.checked = Boolean(statusRes.config.autoDownload);
             subfolderInput.value = statusRes.config.subfolder || 'Dola_Videos';
             currentSettings.subfolder = statusRes.config.subfolder || 'Dola_Videos';
+            updateCleanedPathPreview();
             if (settingNotificationsToggle && typeof statusRes.config.notifications !== 'undefined') {
               settingNotificationsToggle.checked = Boolean(statusRes.config.notifications);
               currentSettings.notifications = Boolean(statusRes.config.notifications);
             }
           }
           renderHistory(statusRes.history || []);
+          updateCleanedPathPreview();
         }
       });
     } catch (e) {

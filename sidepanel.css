@@ -705,7 +705,42 @@ html, body {
 .history-actions-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.btn-tiny-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.btn-action-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: var(--radius-sm);
+  color: #38bdf8;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.btn-action-folder:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.btn-empty-action {
+  margin-top: 8px;
+  padding: 5px 12px;
+  font-size: 10.5px;
 }
 
 .btn-text-cyan {
@@ -1394,6 +1429,44 @@ input:checked + .slider:before {
 .btn-sm:hover {
   background-color: var(--bg-surface-active);
   border-color: var(--border-focus);
+}
+
+.btn-folder-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+.btn-folder-action:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.folder-path-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.preview-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.preview-path {
+  color: #38bdf8;
+  font-size: 10px;
+  word-break: break-all;
 }
 
 /* ==========================================================================

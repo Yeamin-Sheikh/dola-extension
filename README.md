@@ -56,6 +56,7 @@ Cleaned output videos are saved into a dedicated `cleaned/` subfolder, keeping o
 | **In-browser watermark removal** | Removes moving ByteDance watermarks without external Python scripts, terminal watchers, or local servers. | Multiscale harmonic diffusion in Canvas via Chrome offscreen document |
 | **Audio track preservation** | Retains synchronous AAC audio tracks during canvas inpainting. | HTMLMediaElement audio capture stream linked to Web Audio API destination |
 | **Cleaned output segregation** | Routes inpainted videos into `Downloads/Dola_Videos/cleaned/` while raw originals stay in `Downloads/Dola_Videos/`. | Chrome downloads filename suggestion pipeline |
+| **Open folder location** | One-click access from the Captured header, empty list, and Settings to reveal `Downloads/Dola_Videos/cleaned/` in Windows File Explorer. | Multi-tier download verification and directory anchor resolution |
 | **Sidebar auto-zoom** | Scales down the active Dola webpage to 80% while the sidebar is open, and restores 100% zoom when closed. | `chrome.tabs.setZoom` API coordination with fallback DOM scaling |
 | **Screen video grabber** | Grabs and downloads any finished video currently visible in the active tab. | DOM video element inspection and main-world media extraction |
 | **Prompt-based file naming** | Names downloaded MP4 files directly after the prompt text with clean ASCII sanitization. | Prompt capture listener and filename sanitization pipeline |
@@ -217,6 +218,7 @@ Open the **Settings** tab in the sidebar to configure preferences. All settings 
 |---|---|---|---|
 | **Downloads & storage** | Auto-download videos | Enabled | Automatically downloads videos upon generation completion. |
 | | Destination subfolder | `Dola_Videos` | Target folder inside your Windows `Downloads` directory. |
+| | Open folder location | One-click button | Launches Windows File Explorer directly inside `Downloads/<subfolder>/cleaned/`. |
 | | Desktop notifications | Disabled | Displays native Chrome desktop notifications for completed downloads. |
 | **Automation sequence** | Start new chat per batch | Enabled | Opens a clean chat conversation before starting a new batch. |
 | | AI health check greeting | `hey buddy` | Initial greeting to verify AI connection before prompt transmission. |

@@ -91,8 +91,43 @@
       if (subfolderInput && res.config && res.config.subfolder) {
         subfolderInput.value = res.config.subfolder;
       }
+      updatePopupFolderPreview();
       renderHistory(res.history || []);
     });
+  }
+
+  const openFolderBtn = document.getElementById('btn-dola-open-folder');
+  const popupOpenFolderBtn = document.getElementById('btn-popup-open-folder');
+  const popupCleanedPathPreview = document.getElementById('popup-cleaned-path-preview');
+
+  function updatePopupFolderPreview() {
+    if (popupCleanedPathPreview && subfolderInput) {
+      const folder = (subfolderInput.value || 'Dola_Videos').trim().replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
+      popupCleanedPathPreview.textContent = `Downloads/${folder}/cleaned/`;
+    }
+  }
+
+  function triggerPopupOpenFolder(btn) {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = 'Opening...';
+    btn.disabled = true;
+    chrome.runtime.sendMessage({ type: 'OPEN_CLEANED_FOLDER' }, () => {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }, 1200);
+    });
+  }
+
+  [openFolderBtn, popupOpenFolderBtn].forEach(btn => {
+    if (btn) {
+      btn.addEventListener('click', () => triggerPopupOpenFolder(btn));
+    }
+  });
+
+  if (subfolderInput) {
+    subfolderInput.addEventListener('input', updatePopupFolderPreview);
   }
 
   // Toggle Auto-Download
@@ -112,6 +147,7 @@
   if (saveFolderBtn && subfolderInput) {
     saveFolderBtn.addEventListener('click', () => {
       const folder = subfolderInput.value.trim() || 'Dola_Videos';
+      updatePopupFolderPreview();
       chrome.runtime.sendMessage({
         type: 'UPDATE_CONFIG',
         config: { subfolder: folder }
