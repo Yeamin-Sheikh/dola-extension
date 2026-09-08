@@ -1,4 +1,4 @@
-# Dola AI video watermark remover and batch generator v2.3.1
+# Dola AI video watermark remover and batch generator v2.3.2
 
 Chrome extension sidebar for batch video creation, unwatermarked 1080p raw MP4 downloading, and 100% in-browser dynamic watermark removal on Dola AI and Doubao.
 

@@ -731,18 +731,24 @@
         recentPromptsHistory.splice(0, recentPromptsHistory.length - 50);
       }
 
-      const formattedPromptsBlock = validPrompts.map((p, idx) => {
-        let text = p;
-        if (aspectRatio === '9:16' && !text.toLowerCase().startsWith('9:16')) {
-          text = `9:16 vertical portrait: ${text}`;
-        } else if (aspectRatio === '16:9' && !text.toLowerCase().startsWith('16:9')) {
-          text = `16:9 widescreen landscape: ${text}`;
-        }
-        if (!/^\d+\.\s*/.test(text)) {
-          text = `${idx + 1}. ${text}`;
-        }
-        return text;
-      }).join('\n\n');
+      let formattedPromptsBlock = '';
+      if (aspectRatio === 'raw') {
+        // Raw mode: zero modifications, no aspect ratio prefixes, no sequential numbering added
+        formattedPromptsBlock = validPrompts.join('\n\n');
+      } else {
+        formattedPromptsBlock = validPrompts.map((p, idx) => {
+          let text = p;
+          if (aspectRatio === '9:16' && !text.toLowerCase().startsWith('9:16')) {
+            text = `9:16 vertical portrait: ${text}`;
+          } else if (aspectRatio === '16:9' && !text.toLowerCase().startsWith('16:9')) {
+            text = `16:9 widescreen landscape: ${text}`;
+          }
+          if (validPrompts.length > 1 && !/^\d+\.\s*/.test(text)) {
+            text = `${idx + 1}. ${text}`;
+          }
+          return text;
+        }).join('\n\n');
+      }
 
       reportQueueProgress({
         title: 'Sending all prompts via /generate video...',
@@ -830,28 +836,44 @@
     if (message?.type === 'PASTE_PROMPTS_TO_INPUT') {
       (async () => {
         try {
-          const { prompts, aspectRatio, useSlashGenerateVideo } = message.payload || {};
+          const { prompts, rawContent, aspectRatio, useSlashGenerateVideo } = message.payload || {};
+          const isRawMode = aspectRatio === 'raw';
+
+          let formattedPromptsBlock = '';
           const validPrompts = (prompts || []).map(p => p.trim()).filter(Boolean);
-          if (validPrompts.length === 0) {
+
+          if (isRawMode && rawContent) {
+            // Verbatim raw content from textarea: zero modifications, zero added text or numbers
+            formattedPromptsBlock = rawContent;
+          } else if (isRawMode) {
+            formattedPromptsBlock = validPrompts.join('\n\n');
+          } else {
+            if (validPrompts.length === 0) {
+              sendResponse({ ok: false, error: 'No valid prompts provided' });
+              return;
+            }
+
+            formattedPromptsBlock = validPrompts.map((p, idx) => {
+              let text = p;
+              if (aspectRatio === '9:16' && !text.toLowerCase().startsWith('9:16')) {
+                text = `9:16 vertical portrait: ${text}`;
+              } else if (aspectRatio === '16:9' && !text.toLowerCase().startsWith('16:9')) {
+                text = `16:9 widescreen landscape: ${text}`;
+              }
+              if (validPrompts.length > 1 && !/^\d+\.\s*/.test(text)) {
+                text = `${idx + 1}. ${text}`;
+              }
+              return text;
+            }).join('\n\n');
+          }
+
+          if (!formattedPromptsBlock.trim()) {
             sendResponse({ ok: false, error: 'No valid prompts provided' });
             return;
           }
 
-          const formattedPromptsBlock = validPrompts.map((p, idx) => {
-            let text = p;
-            if (aspectRatio === '9:16' && !text.toLowerCase().startsWith('9:16')) {
-              text = `9:16 vertical portrait: ${text}`;
-            } else if (aspectRatio === '16:9' && !text.toLowerCase().startsWith('16:9')) {
-              text = `16:9 widescreen landscape: ${text}`;
-            }
-            if (!/^\d+\.\s*/.test(text)) {
-              text = `${idx + 1}. ${text}`;
-            }
-            return text;
-          }).join('\n\n');
-
           // Record in prompt history for download filename matching
-          for (const p of validPrompts) {
+          for (const p of validPrompts.length > 0 ? validPrompts : [formattedPromptsBlock]) {
             recentPromptsHistory.push({ prompt: p, time: Date.now() });
           }
           if (recentPromptsHistory.length > 50) {
@@ -863,15 +885,16 @@
             if (replied) return;
             replied = true;
             window.removeEventListener('DOLA_PASTE_PROMPTS_RESULT', onResult);
-            sendResponse(e?.detail || { ok: true, count: validPrompts.length });
+            sendResponse(e?.detail || { ok: true, count: validPrompts.length || 1 });
           };
           window.addEventListener('DOLA_PASTE_PROMPTS_RESULT', onResult, { once: true });
 
           window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_ONLY', {
             detail: {
               promptsBlock: formattedPromptsBlock,
-              promptsList: validPrompts,
-              useSlashGenerateVideo: useSlashGenerateVideo !== false
+              promptsList: validPrompts.length > 0 ? validPrompts : [formattedPromptsBlock],
+              useSlashGenerateVideo: useSlashGenerateVideo === true,
+              isBatch: false
             }
           }));
 

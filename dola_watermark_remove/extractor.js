@@ -895,7 +895,9 @@
           }
           await new Promise(r => setTimeout(r, 220));
 
-          ed.commands.insertContent(content);
+          const lines = String(content || '').split('\n');
+          const contentHtml = lines.map(l => `<p>${escapeText(l) || '<br>'}</p>`).join('');
+          ed.commands.insertContent(contentHtml);
           ed.commands.focus('end');
         } else {
           const lines = String(content || '').split('\n');
@@ -1017,8 +1019,10 @@
           return;
         }
 
-        await injectContentIntoEditor(editorEl, promptsBlock, true, detail.useSlashGenerateVideo !== false);
-        window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: true, count: promptsList.length } }));
+        const isBatch = detail.isBatch === true;
+        const useSlash = detail.useSlashGenerateVideo === true;
+        await injectContentIntoEditor(editorEl, promptsBlock, isBatch, useSlash);
+        window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: true, count: promptsList.length || 1 } }));
       } catch (err) {
         console.warn('[Dola Extractor] Paste prompts error:', err);
         window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: false, error: err.message } }));

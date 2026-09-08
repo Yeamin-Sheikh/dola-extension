@@ -163,68 +163,70 @@
   function cleanPromptPrefix(str) {
     return String(str || '')
       .replace(/^\s*(?:(?:prompt|video|scene|topic|clip)\s*#?\d*[:.-]?\s*)/i, '')
-      .replace(/^\s*(?:\d+[\.\)]|\[\d+\]|#\d+[:.-]?)\s*/, '')
-      .replace(/^\s*[-*•]\s*/, '')
       .trim();
   }
 
   function parsePromptsFromInput() {
-    const raw = (batchPromptsInput.value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    if (!raw.trim()) return [];
+    const raw = (batchPromptsInput.value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    if (!raw) return [];
 
-    const lines = raw.split('\n');
-    const prefixRegex = /^\s*(?:(?:prompt|video|scene|topic|clip)\s*#?\d*[:.-]?|\d+[\.\)]|\[\d+\]|#\d+[:.-]?|[-*•])\s+/i;
-    const hasPrefixedLines = lines.some(l => prefixRegex.test(l));
+    const isRawMode = currentSettings.aspectRatio === 'raw';
 
-    if (hasPrefixedLines) {
-      const items = [];
-      let currentItem = [];
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (prefixRegex.test(trimmed)) {
-          if (currentItem.length > 0) {
-            items.push(currentItem.join(' ').trim());
-            currentItem = [];
-          }
-          const cleaned = cleanPromptPrefix(trimmed);
-          if (cleaned) currentItem.push(cleaned);
-        } else {
-          if (currentItem.length > 0) {
-            currentItem.push(trimmed);
-          } else {
-            const cleaned = cleanPromptPrefix(trimmed);
-            if (cleaned) currentItem.push(cleaned);
-          }
+    // 1. Check for explicit markdown divider lines (e.g. --- or === or ***)
+    // This is the cleanest delimiter for multi-topic production prompts
+    const dividerRegex = /\n\s*(?:[-=_*]){3,}\s*(?:\n|$)/;
+    if (dividerRegex.test(raw)) {
+      const chunks = raw.split(dividerRegex).map(c => c.trim()).filter(Boolean);
+      if (chunks.length > 0) {
+        if (isRawMode) {
+          // Raw mode: preserve verbatim, zero modifications, zero stripping
+          return chunks;
         }
+        return chunks.map(c => cleanPromptPrefix(c)).filter(Boolean);
       }
-      if (currentItem.length > 0) {
-        items.push(currentItem.join(' ').trim());
-      }
-      const filtered = items.filter(p => p.length > 0);
-      if (filtered.length > 0) return filtered;
     }
 
-    const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    // 2. In Raw Mode without explicit dividers, treat the entire textarea as ONE raw prompt
+    // This preserves all sections, shot lists, paragraphs, bullet points, and markdown untouched
+    if (isRawMode) {
+      return [raw];
+    }
+
+    // 3. For 9:16 / 16:9 modes, check for explicit prompt headers like "Prompt 1:", "Video 1:"
+    // (Never match bullet points - or * or shot lists as separate prompts)
+    const promptHeaderRegex = /(?:^|\n)\s*(?:prompt|video)\s*#?\d+[:.-]\s+/i;
+    if (promptHeaderRegex.test(raw)) {
+      const parts = raw.split(/(?:^|\n)(?=\s*(?:prompt|video)\s*#?\d+[:.-]\s+)/i)
+        .map(p => p.trim())
+        .filter(Boolean);
+      if (parts.length > 1) {
+        return parts.map(p => cleanPromptPrefix(p)).filter(Boolean);
+      }
+    }
+
+    // 4. Double blank lines separating distinct blocks/paragraphs
+    const blocks = raw.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
     if (blocks.length > 1) {
-      return blocks
-        .map(block => block.split('\n').map(l => l.trim()).filter(Boolean).join(' ').trim())
-        .map(p => cleanPromptPrefix(p))
-        .filter(p => p.length > 0);
+      return blocks.map(p => cleanPromptPrefix(p)).filter(Boolean);
     }
 
-    return lines
-      .map(l => l.trim())
-      .filter(l => l.length > 0)
-      .map(p => cleanPromptPrefix(p))
-      .filter(p => p.length > 0);
+    // 5. Fallback: single prompt
+    return [cleanPromptPrefix(raw)];
   }
 
   function updatePromptCount() {
+    const raw = (batchPromptsInput.value || '').trim();
+    if (!raw) {
+      promptCountBadge.textContent = '0 prompts';
+      return;
+    }
     const list = parsePromptsFromInput();
     const count = list.length;
-    promptCountBadge.textContent = count === 1 ? '1 prompt' : `${count} prompts`;
+    if (currentSettings.aspectRatio === 'raw') {
+      promptCountBadge.textContent = count === 1 ? '1 raw prompt' : `${count} raw prompts`;
+    } else {
+      promptCountBadge.textContent = count === 1 ? '1 prompt' : `${count} prompts`;
+    }
   }
 
   batchPromptsInput.addEventListener('input', () => {
@@ -243,13 +245,16 @@
   // Direct paste to active Dola chat input box
   if (btnPasteToChat) {
     btnPasteToChat.addEventListener('click', async () => {
-      const prompts = parsePromptsFromInput();
-      if (prompts.length === 0) {
+      const rawText = (batchPromptsInput.value || '').trim();
+      if (!rawText) {
         batchPromptsInput.focus();
         promptCountBadge.textContent = 'Enter prompts first';
         setTimeout(updatePromptCount, 2000);
         return;
       }
+
+      const isRaw = currentSettings.aspectRatio === 'raw';
+      const prompts = parsePromptsFromInput();
 
       const originalLabel = btnPasteToChatText ? btnPasteToChatText.textContent : 'Paste to Chat Input';
       if (btnPasteToChatText) btnPasteToChatText.textContent = 'Pasting...';
@@ -284,8 +289,9 @@
           type: 'PASTE_PROMPTS_TO_INPUT',
           payload: {
             prompts,
+            rawContent: rawText,
             aspectRatio: currentSettings.aspectRatio,
-            useSlashGenerateVideo: true
+            useSlashGenerateVideo: false // Pasting directly to chat input should not inject /generate video chips
           }
         }, res => {
           if (chrome.runtime.lastError || (res && !res.ok)) {
@@ -295,7 +301,7 @@
             }, 2000);
           } else {
             const count = res?.count || prompts.length;
-            if (btnPasteToChatText) btnPasteToChatText.textContent = `Pasted ${count} prompt${count === 1 ? '' : 's'}!`;
+            if (btnPasteToChatText) btnPasteToChatText.textContent = isRaw ? 'Pasted raw prompt!' : `Pasted ${count} prompt${count === 1 ? '' : 's'}!`;
             btnPasteToChat.classList.add('btn-action-success');
             setTimeout(() => {
               if (btnPasteToChatText) btnPasteToChatText.textContent = originalLabel;
@@ -319,6 +325,7 @@
       btn.classList.add('active');
       currentSettings.aspectRatio = btn.dataset.ratio;
       safeStorage.set({ dola_aspect_ratio: currentSettings.aspectRatio });
+      updatePromptCount();
     });
   });
 
