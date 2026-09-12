@@ -813,3 +813,18 @@ Status: Done
 - `dola-extension.zip`: Re-packaged distribution zip.
 - `PROGRESS.md`: Logged Session 31.
 
+### 2026-09-13, Session 32
+
+**Status:** Complete
+
+#### What changed
+- Bumped extension version to v2.3.6 across `manifest.json`, `sidepanel.html` (header badge and footer notes), and `README.md` (badges and download link).
+- Re-packaged distribution archive `dola-extension.zip` containing the new v2.3.6 build.
+- Committed all version bump changes, pushed to GitHub `origin main`, and published GitHub Release `v2.3.6` with the release archive.
+
+#### Files touched
+- `manifest.json`: Bumped version to 2.3.6.
+- `sidepanel.html`: Updated header version badge and footer notes to v2.3.6.
+- `README.md`: Bumped version badges to v2.3.6.
+- `dola-extension.zip`: Re-packaged archive.
+- `PROGRESS.md`: Logged Session 32.
