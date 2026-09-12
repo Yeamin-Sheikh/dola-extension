@@ -220,10 +220,17 @@
     this.addEventListener('load', function () {
       if (url && (url.includes('/im/chain/single') || url.includes('/chat/completion') || url.includes('/samantha/'))) {
         try {
-          const data = JSON.parse(this.responseText);
-          processDoubaoFallbackVideos(data, this.responseText, '', requestPrompt);
+          if (!this.responseType || this.responseType === 'text') {
+            const text = this.responseText;
+            if (text) {
+              try {
+                const data = JSON.parse(text);
+                processDoubaoFallbackVideos(data, text, '', requestPrompt);
+              } catch (e) {}
+              scanTextForDirectVideoUrls(text, requestPrompt);
+            }
+          }
         } catch (e) {}
-        scanTextForDirectVideoUrls(this.responseText, requestPrompt);
       }
     });
     return originalXHRSend.apply(this, args);

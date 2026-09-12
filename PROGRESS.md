@@ -828,3 +828,25 @@ Status: Done
 - `README.md`: Bumped version badges to v2.3.6.
 - `dola-extension.zip`: Re-packaged archive.
 - `PROGRESS.md`: Logged Session 32.
+
+### 2026-09-13, Session 33
+
+**Status:** Complete
+
+#### What changed
+- Conducted full code and architectural audit of the extension codebase across all modules.
+- Hardened `background.js`:
+  - Added `offscreenCreationPromise` singleton lock to `ensureOffscreenDocument` to prevent race conditions during rapid concurrent offscreen requests.
+  - Wrapped `dolaProcessCleanerQueue` processing loop in a `try...finally` block to guarantee `isCleanerProcessing` mutex unlocks even if unexpected exceptions occur.
+- Hardened `extractor.js`:
+  - Added `responseType` validation and nested error boundary around `this.responseText` in `XMLHttpRequest.prototype.send` load listener to prevent unhandled `InvalidStateError` exceptions when host endpoints return binary response payloads.
+- Verified 100% ID matching across `sidepanel.html`/`sidepanel.js` and `popup.html`/`popup.js`.
+- Verified zero occurrences of prohibited download manager acronyms across all source and documentation files.
+- Re-packaged `dola-extension.zip` distribution archive.
+
+#### Files touched
+- `background.js`: Added offscreen creation promise lock and try-finally mutex safety in cleaner queue.
+- `extractor.js`: Guarded XHR load listener against non-text response types.
+- `dola-extension.zip`: Re-packaged archive.
+- `PROGRESS.md`: Logged Session 33.
+

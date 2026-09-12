@@ -182,6 +182,8 @@ function dolaGenerateFilename(video, isCleaned = false) {
 }
 
 // Ensure offscreen document exists for Blob handling
+let offscreenCreationPromise = null;
+
 async function ensureOffscreenDocument() {
   if (!chrome.offscreen) return false;
   try {
@@ -190,20 +192,32 @@ async function ensureOffscreenDocument() {
     }
   } catch {}
 
-  try {
-    await chrome.offscreen.createDocument({
-      url: 'offscreen.html',
-      reasons: [chrome.offscreen.Reason.BLOBS || 'BLOBS'],
-      justification: 'In-memory blob pipeline to reliably route downloads directly into the target folder'
-    });
-    return true;
-  } catch (err) {
-    if (err.message && err.message.includes('Only a single offscreen document may exist')) {
-      return true;
-    }
-    console.warn('[Dola Downloader] Failed to create offscreen document:', err);
-    return false;
+  if (offscreenCreationPromise) {
+    return offscreenCreationPromise;
   }
+
+  offscreenCreationPromise = (async () => {
+    try {
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: [chrome.offscreen.Reason.BLOBS || 'BLOBS'],
+        justification: 'In-memory blob pipeline to reliably route downloads directly into the target folder'
+      });
+      // Short delay to allow offscreen script to finish attaching message listeners
+      await new Promise(r => setTimeout(r, 100));
+      return true;
+    } catch (err) {
+      if (err.message && err.message.includes('Only a single offscreen document may exist')) {
+        return true;
+      }
+      console.warn('[Dola Downloader] Failed to create offscreen document:', err);
+      return false;
+    } finally {
+      offscreenCreationPromise = null;
+    }
+  })();
+
+  return offscreenCreationPromise;
 }
 
 // Request offscreen document to fetch video stream and create a local blob: URL
@@ -310,115 +324,117 @@ async function dolaProcessCleanerQueue() {
   if (isCleanerProcessing) return;
   isCleanerProcessing = true;
 
-  while (dolaCleanerQueue.length > 0) {
-    const job = dolaCleanerQueue.find(j => j.status === 'queued');
-    if (!job) break;
+  try {
+    while (dolaCleanerQueue.length > 0) {
+      const job = dolaCleanerQueue.find(j => j.status === 'queued');
+      if (!job) break;
 
-    job.status = 'cleaning';
-    job.progress = 0;
-    dolaBroadcastQueueUpdate();
+      job.status = 'cleaning';
+      job.progress = 0;
+      dolaBroadcastQueueUpdate();
 
-    console.log(`[Dola Downloader] Cleaner Queue: Starting ${job.watermarkType} inpainting for:`, job.filename);
+      console.log(`[Dola Downloader] Cleaner Queue: Starting ${job.watermarkType} inpainting for:`, job.filename);
 
-    let cleanRes = null;
-    try {
-      cleanRes = await dolaCleanVideoInOffscreen(job.cleanUrl, job.filename, job.prompt, job.watermarkType, job.id);
-    } catch (err) {
-      console.warn('[Dola Downloader] Cleaner Queue inpainting error:', err);
-    }
-
-    if (cleanRes && cleanRes.blobUrl) {
-      const downloadTargetUrl = cleanRes.blobUrl;
-      const blobId = cleanRes.blobId;
-
-      dolaRegisterPendingDownload(downloadTargetUrl, job.filename);
-
+      let cleanRes = null;
       try {
-        const downloadId = await chrome.downloads.download({
-          url: downloadTargetUrl,
-          filename: job.filename,
-          saveAs: false,
-          conflictAction: 'uniquify'
-        });
+        cleanRes = await dolaCleanVideoInOffscreen(job.cleanUrl, job.filename, job.prompt, job.watermarkType, job.id);
+      } catch (err) {
+        console.warn('[Dola Downloader] Cleaner Queue inpainting error:', err);
+      }
 
-        if (downloadId) {
-          dolaPendingFilenamesById.set(downloadId, job.filename);
+      if (cleanRes && cleanRes.blobUrl) {
+        const downloadTargetUrl = cleanRes.blobUrl;
+        const blobId = cleanRes.blobId;
+
+        dolaRegisterPendingDownload(downloadTargetUrl, job.filename);
+
+        try {
+          const downloadId = await chrome.downloads.download({
+            url: downloadTargetUrl,
+            filename: job.filename,
+            saveAs: false,
+            conflictAction: 'uniquify'
+          });
+
+          if (downloadId) {
+            dolaPendingFilenamesById.set(downloadId, job.filename);
+          }
+          if (blobId) {
+            activeBlobDownloads.set(downloadId, blobId);
+          }
+
+          dolaDownloadedKeys.add(job.canonicalKey);
+          dolaDownloadedKeys.add(job.mediaKey);
+          dolaDownloadedKeys.add(job.cleanUrl);
+          dolaInProgressKeys.delete(job.canonicalKey);
+          dolaInProgressKeys.delete(job.mediaKey);
+          dolaConfig.totalDownloaded = (dolaConfig.totalDownloaded || 0) + 1;
+
+          const resolutionLabel = job.watermarkType === 'dynamic'
+            ? 'Dynamic Cleaned (In-Browser)'
+            : 'Static Cleaned (In-Browser)';
+
+          const historyEntry = {
+            id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            downloadId,
+            url: job.cleanUrl,
+            filename: job.filename,
+            prompt: job.prompt,
+            resolution: resolutionLabel,
+            watermarkType: job.watermarkType,
+            blobPipeline: true,
+            timestamp: Date.now()
+          };
+
+          dolaDownloadHistory.unshift(historyEntry);
+          await dolaSaveState();
+          dolaUpdateBadge();
+
+          job.status = 'completed';
+          job.progress = 100;
+          dolaBroadcastQueueUpdate();
+
+          if (dolaConfig.notifications) {
+            try {
+              chrome.notifications.create({
+                type: 'basic',
+                iconUrl: 'icon128.png',
+                title: 'Watermark Removed and Saved',
+                message: `${job.prompt.substring(0, 50)}...\nSaved to Downloads/${job.filename}`,
+                priority: 1
+              });
+            } catch {}
+          }
+        } catch (dlErr) {
+          console.warn('[Dola Downloader] Cleaner Queue download failed:', dlErr);
+          job.status = 'failed';
+          job.error = dlErr.message || String(dlErr);
+          dolaInProgressKeys.delete(job.canonicalKey);
+          dolaInProgressKeys.delete(job.mediaKey);
+          dolaBroadcastQueueUpdate();
         }
-        if (blobId) {
-          activeBlobDownloads.set(downloadId, blobId);
-        }
-
-        dolaDownloadedKeys.add(job.canonicalKey);
-        dolaDownloadedKeys.add(job.mediaKey);
-        dolaDownloadedKeys.add(job.cleanUrl);
-        dolaInProgressKeys.delete(job.canonicalKey);
-        dolaInProgressKeys.delete(job.mediaKey);
-        dolaConfig.totalDownloaded = (dolaConfig.totalDownloaded || 0) + 1;
-
-        const resolutionLabel = job.watermarkType === 'dynamic'
-          ? 'Dynamic Cleaned (In-Browser)'
-          : 'Static Cleaned (In-Browser)';
-
-        const historyEntry = {
-          id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          downloadId,
-          url: job.cleanUrl,
-          filename: job.filename,
-          prompt: job.prompt,
-          resolution: resolutionLabel,
-          watermarkType: job.watermarkType,
-          blobPipeline: true,
-          timestamp: Date.now()
-        };
-
-        dolaDownloadHistory.unshift(historyEntry);
-        await dolaSaveState();
-        dolaUpdateBadge();
-
-        job.status = 'completed';
-        job.progress = 100;
-        dolaBroadcastQueueUpdate();
-
-        if (dolaConfig.notifications) {
-          try {
-            chrome.notifications.create({
-              type: 'basic',
-              iconUrl: 'icon128.png',
-              title: 'Watermark Removed and Saved',
-              message: `${job.prompt.substring(0, 50)}...\nSaved to Downloads/${job.filename}`,
-              priority: 1
-            });
-          } catch {}
-        }
-      } catch (dlErr) {
-        console.warn('[Dola Downloader] Cleaner Queue download failed:', dlErr);
+      } else {
+        // Inpainting failed or timed out.
+        // Strict rule: do not fall back to downloading dirty watermarked video.
+        console.warn(`[Dola Downloader] Cleaner inpainting failed for: ${job.filename}. Suppressing raw download to prevent saving watermarked video.`);
         job.status = 'failed';
-        job.error = dlErr.message || String(dlErr);
+        job.error = 'Inpainting failed or timed out';
         dolaInProgressKeys.delete(job.canonicalKey);
         dolaInProgressKeys.delete(job.mediaKey);
         dolaBroadcastQueueUpdate();
       }
-    } else {
-      // Inpainting failed or timed out.
-      // Strict rule: do not fall back to downloading dirty watermarked video.
-      console.warn(`[Dola Downloader] Cleaner inpainting failed for: ${job.filename}. Suppressing raw download to prevent saving watermarked video.`);
-      job.status = 'failed';
-      job.error = 'Inpainting failed or timed out';
-      dolaInProgressKeys.delete(job.canonicalKey);
-      dolaInProgressKeys.delete(job.mediaKey);
+
+      // Keep completed or failed status visible in UI for 1.2s before advancing
+      await new Promise(r => setTimeout(r, 1200));
+      const idx = dolaCleanerQueue.indexOf(job);
+      if (idx !== -1) {
+        dolaCleanerQueue.splice(idx, 1);
+      }
       dolaBroadcastQueueUpdate();
     }
-
-    // Keep completed or failed status visible in UI for 1.2s before advancing
-    await new Promise(r => setTimeout(r, 1200));
-    const idx = dolaCleanerQueue.indexOf(job);
-    if (idx !== -1) {
-      dolaCleanerQueue.splice(idx, 1);
-    }
-    dolaBroadcastQueueUpdate();
+  } finally {
+    isCleanerProcessing = false;
   }
-
-  isCleanerProcessing = false;
 }
 
 function dolaRevokeBlobUrl(blobId, blobUrl) {
