@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dola AI Video Watermark Remover & Downloader",
-  "version": "2.3.6",
+  "version": "2.3.7",
   "description": "Automatically download 100% Watermark-Free 1080P Raw MP4 videos from Dola AI and Doubao.",
   "icons": {
     "16": "icon16.png",

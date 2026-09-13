@@ -22,7 +22,7 @@
           <div class="brand-text">
             <div class="brand-title-row">
               <h1 class="title">Dola Studio</h1>
-              <span class="version-badge">v2.3.6</span>
+              <span class="version-badge">v2.3.7</span>
             </div>
           </div>
         </div>
@@ -338,6 +338,18 @@
             >I'll be away from home and unavailable for the next few hours due to some commitments, so I'm giving you all the prompts in advance. Please create videos for every prompt I send, with each video being approximately 15 seconds long, depending on the prompt. Do not ask me any questions or wait for my confirmation at any stage. If any prompt or video encounters a violation, generation issue, or any other problem, simply skip that particular one and continue with the remaining prompts. Keep processing and generating the videos one after another without stopping or requesting additional instructions, as I will not be available to respond during this time.</textarea>
           </div>
         </div>
+
+        <!-- Auto-Resume Stalled Batches Toggle -->
+        <div class="toggle-row border-top-subtle">
+          <div class="toggle-info">
+            <span class="toggle-title">Auto-resume stalled batches</span>
+            <span class="toggle-desc">Automatically prompts Dola to continue if generation stops before all videos finish</span>
+          </div>
+          <label class="switch" title="Toggle Auto-Resume Stalled Batches">
+            <input id="setting-auto-resume-toggle" type="checkbox" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
       </section>
 
       <!-- 3. Workspace & Display Card -->
@@ -402,7 +414,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <span class="footer-note">Dola Video Studio &bull; v2.3.6</span>
+      <span class="footer-note">Dola Video Studio &bull; v2.3.7</span>
     </footer>
   </div>
 

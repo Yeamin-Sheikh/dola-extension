@@ -70,6 +70,7 @@
   const btnDolaOpenFolderSettings = document.getElementById('btn-dola-open-folder-settings');
   const settingsCleanedPathPreview = document.getElementById('settings-cleaned-path-preview');
   const settingNotificationsToggle = document.getElementById('setting-notifications-toggle');
+  const settingAutoResumeToggle = document.getElementById('setting-auto-resume-toggle');
 
   // DOM Elements: Context Menu
   const contextMenu = document.getElementById('sidebar-context-menu');
@@ -86,7 +87,8 @@
     activeTab: 'generation',
     subfolder: 'Dola_Videos',
     autoDownload: true,
-    notifications: false
+    notifications: false,
+    autoResumeBatches: true
   };
 
   // Safe Chrome API Wrappers
@@ -713,6 +715,18 @@
     btnResetBypass.textContent = 'Reset done!';
     setTimeout(() => { btnResetBypass.textContent = 'Reset default'; }, 1500);
   });
+
+  // --- 7b. Settings: Auto-Resume Stalled Batches Toggle ---
+  if (settingAutoResumeToggle) {
+    settingAutoResumeToggle.addEventListener('change', () => {
+      currentSettings.autoResumeBatches = settingAutoResumeToggle.checked;
+      safeStorage.set({ dola_auto_resume_batches: currentSettings.autoResumeBatches });
+      safeRuntime.sendMessage({
+        type: 'UPDATE_CONFIG',
+        config: { autoResumeBatches: currentSettings.autoResumeBatches }
+      });
+    });
+  }
 
   // --- 8. Settings: Auto-Download & Folder Config ---
   autoDownloadToggle.addEventListener('change', () => {
@@ -1424,6 +1438,9 @@
   if (settingNotificationsToggle) {
     settingNotificationsToggle.checked = currentSettings.notifications;
   }
+  if (settingAutoResumeToggle) {
+    settingAutoResumeToggle.checked = currentSettings.autoResumeBatches;
+  }
 
   // --- 13. State Initialization & Storage Loading ---
   async function loadInitialState() {
@@ -1435,7 +1452,8 @@
         'dola_new_chat_per_batch',
         'dola_auto_zoom_enabled',
         'dola_zoom_level',
-        'dola_bypass_prompt'
+        'dola_bypass_prompt',
+        'dola_auto_resume_batches'
       ]);
 
       // Active tab
@@ -1497,6 +1515,12 @@
         currentSettings.bypassPrompt = res.dola_bypass_prompt;
       }
       settingBypassInput.value = currentSettings.bypassPrompt;
+
+      // Auto-resume stalled batches
+      if (typeof res.dola_auto_resume_batches === 'boolean') {
+        currentSettings.autoResumeBatches = res.dola_auto_resume_batches;
+        if (settingAutoResumeToggle) settingAutoResumeToggle.checked = res.dola_auto_resume_batches;
+      }
 
       // Backend config (subfolder & autoDownload & notifications)
       safeRuntime.sendMessage({ type: 'GET_DOWNLOADER_STATUS' }, statusRes => {

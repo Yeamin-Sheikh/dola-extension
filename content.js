@@ -134,14 +134,20 @@
     return clean.split('?')[0].toLowerCase();
   }
 
-  // Load existing downloaded canonical keys from chrome.storage.local
+  // Load existing downloaded canonical keys and configuration from chrome.storage.local
+  let autoResumeBatchesConfig = true;
   try {
     if (isContextValid()) {
-      chrome.storage.local.get(['dola_downloaded_keys'], res => {
+      chrome.storage.local.get(['dola_downloaded_keys', 'dola_config', 'dola_auto_resume_batches'], res => {
         if (res && Array.isArray(res.dola_downloaded_keys)) {
           for (const k of res.dola_downloaded_keys) {
             downloadedMediaKeys.add(k);
           }
+        }
+        if (res && typeof res.dola_auto_resume_batches === 'boolean') {
+          autoResumeBatchesConfig = res.dola_auto_resume_batches;
+        } else if (res && res.dola_config && typeof res.dola_config.autoResumeBatches === 'boolean') {
+          autoResumeBatchesConfig = res.dola_config.autoResumeBatches;
         }
       });
     }
@@ -150,9 +156,16 @@
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
     try {
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'local' && changes.dola_downloaded_keys?.newValue) {
-          for (const k of changes.dola_downloaded_keys.newValue) {
-            downloadedMediaKeys.add(k);
+        if (area === 'local') {
+          if (changes.dola_downloaded_keys?.newValue) {
+            for (const k of changes.dola_downloaded_keys.newValue) {
+              downloadedMediaKeys.add(k);
+            }
+          }
+          if (typeof changes.dola_auto_resume_batches?.newValue === 'boolean') {
+            autoResumeBatchesConfig = changes.dola_auto_resume_batches.newValue;
+          } else if (changes.dola_config?.newValue && typeof changes.dola_config.newValue.autoResumeBatches === 'boolean') {
+            autoResumeBatchesConfig = changes.dola_config.newValue.autoResumeBatches;
           }
         }
       });
@@ -420,6 +433,32 @@
         found.push(video);
         triggerDownload(video);
       }
+
+      // Also scan HTML5 video elements in chat or preview modals
+      const videoEls = document.querySelectorAll('video:not([data-dola-processed])');
+      for (const v of videoEls) {
+        const src = v.currentSrc || v.src || v.querySelector('source')?.src || '';
+        if (!src || !src.startsWith('http')) continue;
+
+        v.setAttribute('data-dola-processed', 'true');
+
+        const isDynamic = src.includes('lr=video_gen_watermark_dyn') || src.includes('video_gen_watermark_dyn');
+        const isStatic = !isDynamic && src.includes('video_gen_watermark');
+        const title = extractTitleForLink(v);
+        const video = {
+          url: src,
+          vid: src,
+          title,
+          prompt: title,
+          watermarkType: isDynamic ? 'dynamic' : (isStatic ? 'static' : 'none'),
+          definition: isDynamic ? 'Dynamic Watermark' : (isStatic ? 'Static Watermark' : '1080P Raw'),
+          source: 'dom_video_tag',
+          timestamp: Date.now()
+        };
+
+        found.push(video);
+        triggerDownload(video);
+      }
     } catch (e) {
       if (!isContextValid() || e?.message?.includes('context invalidated')) {
         handleContextInvalidated();
@@ -469,8 +508,15 @@
   }
 
   function getAssistantMessages() {
-    const items = Array.from(document.querySelectorAll('.inner-item-BjaxFt, .my-0.w-full'));
-    const assistantItems = items.filter(it => !it.querySelector('[class*="send-msg-bubble"]'));
+    const items = Array.from(document.querySelectorAll(
+      '.inner-item-BjaxFt, .my-0.w-full, [data-message-id], [class*="flow-message"], [class*="bubble-msg"], [class*="messageContent"]'
+    ));
+    const assistantItems = items.filter(it => {
+      const isUser = it.querySelector('[class*="send-msg-bubble"], [class*="user-bubble"], [data-role="user"]') ||
+                     it.className.includes('send-msg-bubble') ||
+                     it.className.includes('user-bubble');
+      return !isUser;
+    });
     return assistantItems.map(it => it.innerText.trim()).filter(Boolean);
   }
 
@@ -505,7 +551,7 @@
         }
 
         const breakBtn = document.querySelector('.break-btn-fISNgC');
-        const isGenerating = Boolean(breakBtn);
+        const isGenerating = breakBtn && !breakBtn.classList.contains('!hidden') && getComputedStyle(breakBtn).display !== 'none';
 
         const currentMessages = getAssistantMessages();
         const currentCount = currentMessages.length;
@@ -585,6 +631,216 @@
         }
       }, timeoutMs);
     });
+  }
+
+  /**
+   * Evaluates whether Dola AI is actively generating or processing media.
+   * Checks both the stop generation button state (.break-btn-fISNgC)
+   * and the primary message submission button loading attribute (#flow-end-msg-send).
+   * 
+   * When Dola is actively computing video frames:
+   * 1. .break-btn-fISNgC is present and lacks the Tailwind '!hidden' utility class.
+   * 2. The element's computed CSS display property is not 'none'.
+   * 3. Alternatively, the send button exhibits data-loading="true".
+   */
+  function isDolaGenerating() {
+    const breakBtn = document.querySelector('.break-btn-fISNgC');
+    if (breakBtn && !breakBtn.classList.contains('!hidden') && getComputedStyle(breakBtn).display !== 'none') {
+      return true;
+    }
+    const sendBtn = document.querySelector('#flow-end-msg-send');
+    if (sendBtn && sendBtn.getAttribute('data-loading') === 'true') {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Scans the conversation stream for progress markers and completed video milestones.
+   * Dola AI outputs structured sequential progress markers inside thinking accordions:
+   * e.g., "Videos 1 and 2 generated. Continuing with prompts 3 and 4."
+   * e.g., "Video 3 hit a policy violation and is skipped; video 4 generated."
+   * e.g., "Videos 7 and 8 generated. Finishing with prompts 9 and 10."
+   * 
+   * This parser extracts the highest processed prompt index and checks for batch termination phrases.
+   * 
+   * @param {number} totalExpected - Total count of prompts submitted in the current batch.
+   * @returns {{ maxFound: number, completedAll: boolean }} Progress snapshot.
+   */
+  function parseBatchProgressFromChat(totalExpected) {
+    const messages = getAssistantMessages();
+    let maxFound = 0;
+    let completedAll = false;
+
+    // Pattern matches phrases denoting completed, rendered, or skipped video prompt numbers
+    // Supports direct verbs ("Videos 1 and 2 generated") as well as intervening descriptions ("Video 3 hit a policy violation and is skipped")
+    const pattern = /(?:videos?|prompts?)\s*(\d+)(?:\s*(?:and|to|-|,)\s*(\d+))?(?:[^.\n;]{0,45}?\s*)?(?:generated|completed|finished|rendered|skipped|created)/gi;
+
+    for (const msg of messages) {
+      let match;
+      while ((match = pattern.exec(msg)) !== null) {
+        const p1 = parseInt(match[1], 10);
+        const p2 = match[2] ? parseInt(match[2], 10) : p1;
+        if (!isNaN(p1) && p1 <= totalExpected && p1 > maxFound) maxFound = p1;
+        if (!isNaN(p2) && p2 <= totalExpected && p2 > maxFound) maxFound = p2;
+      }
+      const lower = msg.toLowerCase();
+      if (
+        lower.includes(`all ${totalExpected} videos`) ||
+        lower.includes(`all ${totalExpected} prompts`) ||
+        lower.includes('all videos generated') ||
+        lower.includes('all prompts have been processed') ||
+        lower.includes('all prompts processed')
+      ) {
+        completedAll = true;
+      }
+    }
+    return { maxFound, completedAll: completedAll || (maxFound >= totalExpected) };
+  }
+
+  /**
+   * Unattended Multi-Video Batch Monitor & Stall Recovery Loop
+   * Monitors long-running batch video generation across multiple sub-batch cycles.
+   * 
+   * Technical problem addressed:
+   * Dola AI processes multi-video requests in sub-batches of 2 videos inside thinking accordions.
+   * Due to backend assistant turn limits, Dola frequently halts after generating 3 to 6 videos,
+   * terminating the current assistant turn while leaving subsequent prompts unrendered.
+   * 
+   * Operational mechanism:
+   * 1. Polls every 2.5 seconds to track active generation vs idle state.
+   * 2. When generation pauses, applies a 10-second debounce buffer to distinguish between
+   *    brief inter-sub-batch deliberation (2-4s) and an actual premature turn termination.
+   * 3. If idle state persists for >= 10s and prompts remain unfulfilled:
+   *    - Formats a continuation prompt referencing the remaining prompt range (e.g. prompts 7 to 10).
+   *    - Dispatches DOLA_AUTO_CONTINUE_BATCH to inject into Tiptap editor and trigger send.
+   *    - Tracks recovery attempts (capped at 10) to guard against infinite retry loops.
+   * 4. Once all prompts reach completion or maximum retry threshold is reached, finishes cleanly.
+   * 
+   * @param {Object} params
+   * @param {string[]} params.validPrompts - Prompts included in the active batch.
+   * @param {number} [params.timeoutMs=1800000] - Hard upper-bound timeout (default: 30 mins).
+   * @returns {Promise<{ok: boolean, completedAll?: boolean, totalProcessed?: number, error?: string}>}
+   */
+  async function monitorBatchUntilComplete({ validPrompts, timeoutMs = 1800000 }) {
+    const totalExpected = (validPrompts || []).length;
+    if (totalExpected === 0) return { ok: true };
+
+    const startTime = Date.now();
+    let idleStartTime = null;
+    let resumeAttempts = 0;
+    const maxResumeAttempts = 10;
+    const idleDebounceMs = 10000; // 10s idle debounce window
+
+    console.log(`[Dola Content] 🎯 Starting batch monitor for ${totalExpected} prompts. Auto-resume: ${autoResumeBatchesConfig}`);
+
+    // Allow initial generation request to reach the server and activate the break button
+    await sleep(2500);
+
+    while (Date.now() - startTime < timeoutMs) {
+      if (shouldStopQueue) {
+        return { ok: false, error: 'Queue stopped by user.' };
+      }
+
+      const generating = isDolaGenerating();
+      const progress = parseBatchProgressFromChat(totalExpected);
+
+      // Check if all prompts have been generated
+      if (progress.completedAll || progress.maxFound >= totalExpected) {
+        console.log(`[Dola Content] 🎉 Batch complete! All ${totalExpected} prompts processed.`);
+        reportQueueProgress({
+          title: 'Batch generation complete',
+          detail: `All ${totalExpected} video prompts finished successfully.`,
+          currentStep: 3,
+          totalSteps: 3
+        });
+        return { ok: true, completedAll: true, totalProcessed: totalExpected };
+      }
+
+      if (generating) {
+        // Active generation in progress: reset idle timer
+        idleStartTime = null;
+        reportQueueProgress({
+          title: `Dola is generating videos (${progress.maxFound}/${totalExpected})...`,
+          detail: 'Processing video sub-batch (generation active)',
+          currentStep: 3,
+          totalSteps: 3
+        });
+      } else {
+        // Generation is not currently active: monitor idle duration
+        if (idleStartTime === null) {
+          idleStartTime = Date.now();
+        }
+        const idleDuration = Date.now() - idleStartTime;
+
+        if (idleDuration >= idleDebounceMs) {
+          // Sustained idle confirmed beyond debounce window
+          if (!autoResumeBatchesConfig) {
+            console.log('[Dola Content] Generation turn paused and auto-resume is disabled.');
+            reportQueueProgress({
+              title: 'Batch paused (Auto-resume disabled)',
+              detail: `Generated ${progress.maxFound} of ${totalExpected} prompts.`,
+              currentStep: 3,
+              totalSteps: 3
+            });
+            return { ok: true, paused: true, completedCount: progress.maxFound };
+          }
+
+          if (resumeAttempts >= maxResumeAttempts) {
+            console.warn(`[Dola Content] Reached maximum resume attempts (${maxResumeAttempts}). Halting monitor.`);
+            reportQueueProgress({
+              title: 'Batch paused after max resume attempts',
+              detail: `Sent ${maxResumeAttempts} continuation requests. ${progress.maxFound}/${totalExpected} prompts done.`,
+              currentStep: 3,
+              totalSteps: 3
+            });
+            return { ok: true, maxRetriesReached: true, completedCount: progress.maxFound };
+          }
+
+          // Trigger automated resumption
+          resumeAttempts++;
+          const nextPrompt = progress.maxFound + 1;
+          const continuationText = nextPrompt <= totalExpected
+            ? `Please continue generating the remaining videos (prompts ${nextPrompt} to ${totalExpected}).`
+            : `Please continue generating the remaining videos until all ${totalExpected} prompts are complete.`;
+
+          console.log(`[Dola Content] 🔄 Detected generation stall (${progress.maxFound}/${totalExpected} done). Sending resume prompt #${resumeAttempts}: "${continuationText}"`);
+
+          reportQueueProgress({
+            title: `Auto-resuming batch (${resumeAttempts}/${maxResumeAttempts})...`,
+            detail: `Prompting Dola: "${continuationText}"`,
+            currentStep: 3,
+            totalSteps: 3
+          });
+
+          window.dispatchEvent(new CustomEvent('DOLA_AUTO_CONTINUE_BATCH', {
+            detail: {
+              customMessage: continuationText,
+              nextPrompt,
+              totalExpected,
+              resumeAttempt: resumeAttempts
+            }
+          }));
+
+          // Reset idle tracking and allow Dola time to register the prompt and spawn generation
+          idleStartTime = null;
+          await sleep(5000);
+        } else {
+          // Waiting inside the 10-second debounce buffer
+          const remainingSec = Math.ceil((idleDebounceMs - idleDuration) / 1000);
+          reportQueueProgress({
+            title: `Dola paused turn (${progress.maxFound}/${totalExpected} done)...`,
+            detail: `Verifying completion state (${remainingSec}s debounce buffer)`,
+            currentStep: 3,
+            totalSteps: 3
+          });
+        }
+      }
+
+      await sleep(2500);
+    }
+
+    return { ok: false, error: `Batch generation timed out after ${Math.round(timeoutMs / 60000)} minutes.` };
   }
 
   /**
@@ -758,14 +1014,18 @@
         }
       }));
 
-      // Monitor Dola generation and capture downloads
-      await waitForStreamEnd(90000);
-      await sleep(2000);
+      // Monitor Dola generation, capture downloads, and automatically resume stalled sub-batches
+      const batchResult = await monitorBatchUntilComplete({ validPrompts, timeoutMs: 1800000 });
+      await sleep(2500);
       scanDomForDownloadLinks();
+
+      if (!batchResult.ok && batchResult.error) {
+        throw new Error(batchResult.error);
+      }
 
       reportQueueProgress({
         title: 'Batch generation finished',
-        detail: `Submitted all ${validPrompts.length} prompts via /generate video.`,
+        detail: `All ${validPrompts.length} prompts processed via /generate video.`,
         currentStep: totalSteps,
         totalSteps,
         done: true

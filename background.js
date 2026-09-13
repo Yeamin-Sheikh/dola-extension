@@ -8,6 +8,7 @@ let dolaConfig = {
   autoDownload: true,
   subfolder: 'Dola_Videos',
   notifications: false,
+  autoResumeBatches: true,
   totalDownloaded: 0
 };
 

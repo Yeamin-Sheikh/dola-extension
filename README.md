@@ -15,12 +15,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-5e6ad2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
   <img src="https://img.shields.io/badge/Engine-In--Browser%20Offscreen-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="In-Browser Cleaner">
-  <img src="https://img.shields.io/badge/Version-v2.3.6-38bdf8?style=for-the-badge" alt="Version 2.3.6">
+  <img src="https://img.shields.io/badge/Version-v2.3.7-38bdf8?style=for-the-badge" alt="Version 2.3.7">
   <img src="https://img.shields.io/badge/Watermark_Removal-Client--Side_Only-10b981?style=for-the-badge" alt="Client-Side Only">
   <img src="https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge" alt="MIT License">
   <br>
   <a href="https://github.com/Yeamin-Sheikh/dola-extension/releases/latest/download/dola-extension.zip">
-    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.6-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
+    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.3.7-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
   </a>
 </p>
 
@@ -52,6 +52,7 @@ Cleaned output videos are saved into a dedicated `cleaned/` subfolder, keeping o
 | Feature | Description | Mechanism |
 |---|---|---|
 | **Multi-format prompt parser** | Parses numbered lists (`1.`, `2.`), bullet points (`-`), section headers (`Prompt 1:`), and blank-line separated blocks without collapsing prompts. | Regular expression prefix segmentation in `sidepanel.js` |
+| **Auto-resume stalled batches** | Detects when Dola pauses multi-video generation and sends targeted continuation prompts until all prompts finish. | Debounced stall detection loop and automated continuation dispatch in `content.js` |
 | **Paste to chat input** | One-click button to immediately paste formatted prompts with the official Generate Videos skill chip directly into Dola's editor. | Polling editor search with synthetic Tiptap mention insertion |
 | **In-browser watermark removal** | Removes moving ByteDance watermarks without external Python scripts, terminal watchers, or local servers. | Multiscale harmonic diffusion in Canvas via Chrome offscreen document |
 | **Audio track preservation** | Retains synchronous AAC audio tracks during canvas inpainting. | HTMLMediaElement audio capture stream linked to Web Audio API destination |
@@ -95,7 +96,7 @@ Mode 1: Instant Demonstration
 [Paste Prompts] -> [Click "Paste to Chat Input"] -> [Editor populated with Skill Chip] -> [Send manually]
 
 Mode 2: Full Unattended Automation
-[Paste Prompts] -> [Click "Start Batch Generation"] -> [New Chat] -> [Greeting] -> [Bypass Agreement] -> [Auto-Submit]
+[Paste Prompts] -> [Click "Start Batch Generation"] -> [New Chat] -> [Bypass Agreement] -> [Auto-Submit] -> [Auto-Resume Stalls] -> [All Complete]
 ```
 
 ### Mode 1: Instant demonstration paste
@@ -220,9 +221,8 @@ Open the **Settings** tab in the sidebar to configure preferences. All settings 
 | | Destination subfolder | `Dola_Videos` | Target folder inside your Windows `Downloads` directory. |
 | | Open folder location | One-click button | Launches Windows File Explorer directly inside `Downloads/<subfolder>/cleaned/`. |
 | | Desktop notifications | Disabled | Displays native Chrome desktop notifications for completed downloads. |
-| **Automation sequence** | Start new chat per batch | Enabled | Opens a clean chat conversation before starting a new batch. |
-| | AI health check greeting | `hey buddy` | Initial greeting to verify AI connection before prompt transmission. |
-| | Unattended bypass instruction | Built-in preset | Agreement prompt instructing Dola to process all videos without confirmation pauses. |
+| **Automation sequence** | Unattended bypass instruction | Built-in preset | Agreement prompt instructing Dola to process all videos without confirmation pauses. |
+| | Auto-resume stalled batches | Enabled | Automatically detects when Dola pauses multi-video generation and sends continuation prompts. |
 | **Workspace & display** | Auto-zoom on batch | Enabled | Scales active Dola tab to fit sidebar without horizontal scrollbars. |
 | | Default zoom factor | `80%` | Zoom level applied while sidebar is connected (options: 75%, 80%, 85%, 90%, 100%). |
 

@@ -1090,6 +1090,37 @@
       }
     };
     window.addEventListener('DOLA_PASTE_PROMPTS_ONLY', window.__DOLA_PASTE_ONLY_LISTENER__);
+
+    // 6. Auto-continue stalled batch generation
+    if (window.__DOLA_AUTO_CONTINUE_LISTENER__) {
+      window.removeEventListener('DOLA_AUTO_CONTINUE_BATCH', window.__DOLA_AUTO_CONTINUE_LISTENER__);
+    }
+    window.__DOLA_AUTO_CONTINUE_LISTENER__ = async (event) => {
+      try {
+        const detail = event?.detail || {};
+        const text = detail.customMessage || 'Please continue generating the remaining videos.';
+        latestSubmittedPrompt = cleanUserPrompt(text);
+
+        console.log('[Dola Extractor] 🔄 Auto-resuming batch with continuation prompt:', text);
+
+        const editorEl = await waitForDolaEditor(8000);
+        if (!editorEl) {
+          console.warn('[Dola Extractor] Chat editor not found for auto-continuation');
+          return;
+        }
+
+        await injectContentIntoEditor(editorEl, text, false, false);
+        await new Promise(r => setTimeout(r, 350));
+        dolaSubmitMessage(35, 120);
+
+        window.dispatchEvent(new CustomEvent('DOLA_AUTO_CONTINUE_SENT', {
+          detail: { text, timestamp: Date.now() }
+        }));
+      } catch (err) {
+        console.warn('[Dola Extractor] Auto-continue execution error:', err);
+      }
+    };
+    window.addEventListener('DOLA_AUTO_CONTINUE_BATCH', window.__DOLA_AUTO_CONTINUE_LISTENER__);
   }
 
   // Initial attachment of automation listeners

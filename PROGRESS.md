@@ -13,6 +13,30 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 ## Progress log
 
+### 2026-09-13, Session 26
+
+Status: Done
+
+#### What changed
+- Audited Dola AI's updated interface live with a 10-prompt video generation batch to identify why multi-video generation pauses after 3 to 4 videos.
+- Identified DOM signatures of turn breaks: `.break-btn-fISNgC` receives Tailwind `!hidden` class, `#flow-end-msg-send` returns to `data-loading="false"`, and assistant turn terminates before all prompts are rendered.
+- Built automated stall detection and recovery engine (`monitorBatchUntilComplete`) in `content.js` with 10-second debounce buffer to distinguish inter-sub-batch transitions from premature turn endings.
+- Added automated continuation dispatcher in `extractor.js` (`DOLA_AUTO_CONTINUE_BATCH`) that injects targeted continuation prompts (e.g. `Please continue generating the remaining videos (prompts 7 to 10).`) into Tiptap ProseMirror editor and auto-submits.
+- Added user-facing "Auto-resume stalled batches" toggle in `sidepanel.html` under Automation Sequence settings, backed by persistent `chrome.storage.local`.
+- Bumped extension version to `v2.3.7` across `manifest.json`, `sidepanel.html`, `sidepanel.js`, `background.js`, `README.md`, and `PROGRESS.md`.
+
+#### Files touched
+- `content.js`: Implemented `isDolaGenerating`, `parseBatchProgressFromChat`, and `monitorBatchUntilComplete`.
+- `extractor.js`: Added `DOLA_AUTO_CONTINUE_BATCH` listener and event dispatch.
+- `sidepanel.html`: Added Auto-resume stalled batches switch and updated version badges to v2.3.7.
+- `sidepanel.js`: Bound toggle events, state persistence, and storage initialization.
+- `background.js`: Added `autoResumeBatches` default configuration.
+- `manifest.json`: Bumped version to `2.3.7`.
+- `README.md`: Updated documentation, feature table, and version badges.
+- `PROGRESS.md`: Logged Session 26 updates.
+
+---
+
 ### 2026-09-08, Session 25
 
 Status: Done
