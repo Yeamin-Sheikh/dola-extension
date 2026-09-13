@@ -13,6 +13,24 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 ## Progress log
 
+### 2026-09-13, Session 28
+
+Status: Done
+
+#### What changed
+- Resolved Chrome extension error warning (`content.js:960`): when automation was halted by the user during the bypass check, `verifyAiResponse` returned `{ ok: false, error: 'Queue stopped by user.' }`, which previously fell into an `else` block that logged a `console.warn` stating it was proceeding to prompt dispatch before checking `shouldStopQueue`.
+- Added immediate pre-branch guard in `content.js` checking `if (shouldStopQueue || bypassCheck.error === 'Queue stopped by user.') throw new Error('Queue stopped by user.');`, ensuring cancelled queues terminate immediately and silently.
+- Converted non-critical `console.warn` calls to `console.log` across `content.js` and `extractor.js` so Chromium does not trigger warning badges and error counters in `chrome://extensions`.
+- Re-packaged distribution archive `dola-extension.zip`.
+
+#### Files touched
+- `content.js`: Added early exit on user-stopped queue and converted warnings to informational logs.
+- `extractor.js`: Converted all fallback/suppression warnings to `console.log`.
+- `dola-extension.zip`: Re-packaged release archive.
+- `PROGRESS.md`: Logged Session 28 updates.
+
+---
+
 ### 2026-09-13, Session 27
 
 Status: Done
