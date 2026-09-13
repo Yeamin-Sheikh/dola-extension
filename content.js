@@ -788,7 +788,7 @@
           }
 
           if (resumeAttempts >= maxResumeAttempts) {
-            console.warn(`[Dola Content] Reached maximum resume attempts (${maxResumeAttempts}). Halting monitor.`);
+            console.log(`[Dola Content] Reached maximum resume attempts (${maxResumeAttempts}). Halting monitor.`);
             reportQueueProgress({
               title: 'Batch paused after max resume attempts',
               detail: `Sent ${maxResumeAttempts} continuation requests. ${progress.maxFound}/${totalExpected} prompts done.`,
@@ -948,6 +948,10 @@
         timeoutMs: 22000
       });
 
+      if (shouldStopQueue || bypassCheck.error === 'Queue stopped by user.') {
+        throw new Error('Queue stopped by user.');
+      }
+
       if (bypassCheck.ok) {
         reportQueueProgress({
           title: 'Batch instructions acknowledged',
@@ -957,7 +961,7 @@
         });
         await sleep(1500);
       } else {
-        console.warn('[Dola Content] Bypass response unverified, proceeding to prompt dispatch:', bypassCheck.error);
+        console.log('[Dola Content] Bypass response unverified, proceeding to prompt dispatch:', bypassCheck.error);
         reportQueueProgress({
           title: 'Batch instructions delivered',
           detail: 'Proceeding directly to video prompt injection',

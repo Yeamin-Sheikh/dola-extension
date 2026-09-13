@@ -11,7 +11,7 @@
     const originalPrompt = window.prompt;
     window.prompt = function(message, defaultVal) {
       if (typeof message === 'string' && message.toLowerCase().includes('copy to clipboard')) {
-        console.warn('[Dola Extractor] Suppressed copy-to-clipboard browser prompt modal:', defaultVal);
+        console.log('[Dola Extractor] Suppressed copy-to-clipboard browser prompt modal:', defaultVal);
         return defaultVal || null;
       }
       return originalPrompt ? originalPrompt.apply(this, arguments) : null;
@@ -201,7 +201,7 @@
     try {
       window.dispatchEvent(new CustomEvent('DOLA_VIDEO_EXTRACTED', { detail: normalized }));
     } catch (e) {
-      console.warn('[Dola Extractor] Failed to dispatch DOLA_VIDEO_EXTRACTED:', e);
+      console.log('[Dola Extractor] Failed to dispatch DOLA_VIDEO_EXTRACTED:', e);
     }
   }
 
@@ -361,7 +361,7 @@
           }
         })
         .catch(err => {
-          console.warn('[Dola Extractor] Fallback API extraction error:', err);
+          console.log('[Dola Extractor] Fallback API extraction error:', err);
         });
     }
   }
@@ -843,7 +843,7 @@
           }
         }
       } catch (err) {
-        console.warn('[Dola Extractor] Click New Chat error:', err);
+        console.log('[Dola Extractor] Click New Chat error:', err);
       }
     };
     window.addEventListener('DOLA_CLICK_NEW_CHAT', window.__DOLA_NEW_CHAT_LISTENER__);
@@ -984,7 +984,7 @@
       // Validation check
       const currentText = editorEl.innerText || editorEl.textContent || '';
       if (!currentText.trim() && content.trim()) {
-        console.warn('[Dola Extractor] Editor text verification failed, applying direct text fallback');
+        console.log('[Dola Extractor] Editor text verification failed, applying direct text fallback');
         editorEl.innerText = content;
         editorEl.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
       }
@@ -1008,7 +1008,7 @@
 
         const editorEl = await waitForDolaEditor(8000);
         if (!editorEl) {
-          console.warn('[Dola Extractor] Chat editor element not found after waiting');
+          console.log('[Dola Extractor] Chat editor element not found after waiting');
           return;
         }
 
@@ -1016,7 +1016,7 @@
         await new Promise(r => setTimeout(r, 350));
         dolaSubmitMessage(35, 120);
       } catch (err) {
-        console.warn('[Dola Extractor] Inject and send error:', err);
+        console.log('[Dola Extractor] Inject and send error:', err);
       }
     };
     window.addEventListener('DOLA_INJECT_AND_SEND', window.__DOLA_INJECT_LISTENER__);
@@ -1044,7 +1044,7 @@
 
         const editorEl = await waitForDolaEditor(8000);
         if (!editorEl) {
-          console.warn('[Dola Extractor] Chat editor element not found for batch');
+          console.log('[Dola Extractor] Chat editor element not found for batch');
           return;
         }
 
@@ -1052,7 +1052,7 @@
         await new Promise(r => setTimeout(r, 400));
         dolaSubmitMessage(35, 120);
       } catch (err) {
-        console.warn('[Dola Extractor] Batch inject error:', err);
+        console.log('[Dola Extractor] Batch inject error:', err);
       }
     };
     window.addEventListener('DOLA_INJECT_AND_SEND_BATCH', window.__DOLA_BATCH_LISTENER__);
@@ -1075,7 +1075,7 @@
 
         const editorEl = await waitForDolaEditor(8000);
         if (!editorEl) {
-          console.warn('[Dola Extractor] Chat editor element not found for paste');
+          console.log('[Dola Extractor] Chat editor element not found for paste');
           window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: false, error: 'Chat editor not found' } }));
           return;
         }
@@ -1085,7 +1085,7 @@
         await injectContentIntoEditor(editorEl, promptsBlock, isBatch, useSlash);
         window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: true, count: promptsList.length || 1 } }));
       } catch (err) {
-        console.warn('[Dola Extractor] Paste prompts error:', err);
+        console.log('[Dola Extractor] Paste prompts error:', err);
         window.dispatchEvent(new CustomEvent('DOLA_PASTE_PROMPTS_RESULT', { detail: { ok: false, error: err.message } }));
       }
     };
@@ -1105,7 +1105,7 @@
 
         const editorEl = await waitForDolaEditor(8000);
         if (!editorEl) {
-          console.warn('[Dola Extractor] Chat editor not found for auto-continuation');
+          console.log('[Dola Extractor] Chat editor not found for auto-continuation');
           return;
         }
 
@@ -1117,7 +1117,7 @@
           detail: { text, timestamp: Date.now() }
         }));
       } catch (err) {
-        console.warn('[Dola Extractor] Auto-continue execution error:', err);
+        console.log('[Dola Extractor] Auto-continue execution error:', err);
       }
     };
     window.addEventListener('DOLA_AUTO_CONTINUE_BATCH', window.__DOLA_AUTO_CONTINUE_LISTENER__);
