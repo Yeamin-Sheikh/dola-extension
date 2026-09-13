@@ -822,10 +822,16 @@
     }
     window.__DOLA_NEW_CHAT_LISTENER__ = () => {
       try {
-        const items = Array.from(document.querySelectorAll('.group\\/sidebar_nav_item, [class*="sidebar_nav_item"]'));
+        const items = Array.from(document.querySelectorAll('.group\\/sidebar_nav_item, [class*="sidebar_nav_item"], .nav-link-IkIer0'));
         const newChatItem = items.find(el => el.textContent && el.textContent.includes('New Chat'));
         if (newChatItem) {
           newChatItem.click();
+          const reactKey = Object.keys(newChatItem).find(k => k.startsWith('__reactProps'));
+          if (reactKey && typeof newChatItem[reactKey]?.onClick === 'function') {
+            try {
+              newChatItem[reactKey].onClick({ preventDefault: () => {}, stopPropagation: () => {} });
+            } catch (e) {}
+          }
           console.log('[Dola Extractor] Clicked New Chat navigation item');
         } else {
           const anyNewChat = Array.from(document.querySelectorAll('a, button, div')).find(el =>
