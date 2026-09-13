@@ -78,7 +78,36 @@
     });
   }
 
+  function dolaNormalizeSubfolder(inputFolder) {
+    if (!inputFolder || typeof inputFolder !== 'string') return 'Dola_Videos';
+    let folder = inputFolder.trim().replace(/\\/g, '/');
+    const downloadsMatch = folder.match(/(?:^|[/\\])Downloads(?:[/\\](.*))?$/i);
+    if (downloadsMatch) {
+      folder = downloadsMatch[1] || '';
+    } else {
+      folder = folder.replace(/^[a-zA-Z]:[/]*/, '');
+      folder = folder.replace(/^Users\/[^/]+\//i, '');
+    }
+    folder = folder.replace(/^\/+|\/+$/g, '');
+    folder = folder.replace(/\/cleaned$/i, '');
+    if (folder.toLowerCase() === 'cleaned') folder = '';
+    const segments = folder.split('/')
+      .map(seg => seg.trim().replace(/[<>:"|?*]/g, '_').replace(/^[.\s]+|[.\s]+$/g, ''))
+      .filter(seg => seg && seg !== '..');
+    return segments.join('/') || 'Dola_Videos';
+  }
+
   function refreshDownloaderState() {
+    chrome.storage.local.get(['dola_subfolder', 'dola_downloader_config'], (stored) => {
+      if (stored && subfolderInput) {
+        const localFolder = stored.dola_subfolder || stored.dola_downloader_config?.subfolder;
+        if (localFolder) {
+          subfolderInput.value = dolaNormalizeSubfolder(localFolder);
+          updatePopupFolderPreview();
+        }
+      }
+    });
+
     chrome.runtime.sendMessage({ type: 'GET_DOWNLOADER_STATUS' }, res => {
       if (chrome.runtime.lastError || !res || !res.ok) return;
 
@@ -89,7 +118,7 @@
         autoDownloadToggle.checked = Boolean(res.config.autoDownload);
       }
       if (subfolderInput && res.config && res.config.subfolder) {
-        subfolderInput.value = res.config.subfolder;
+        subfolderInput.value = dolaNormalizeSubfolder(res.config.subfolder);
       }
       updatePopupFolderPreview();
       renderHistory(res.history || []);
@@ -102,7 +131,7 @@
 
   function updatePopupFolderPreview() {
     if (popupCleanedPathPreview && subfolderInput) {
-      const folder = (subfolderInput.value || 'Dola_Videos').trim().replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
+      const folder = dolaNormalizeSubfolder(subfolderInput.value || 'Dola_Videos');
       popupCleanedPathPreview.textContent = `Downloads/${folder}/cleaned/`;
     }
   }
@@ -145,9 +174,15 @@
 
   // Save Folder Name
   if (saveFolderBtn && subfolderInput) {
-    saveFolderBtn.addEventListener('click', () => {
-      const folder = subfolderInput.value.trim() || 'Dola_Videos';
+    saveFolderBtn.addEventListener('click', async () => {
+      const folder = dolaNormalizeSubfolder(subfolderInput.value || 'Dola_Videos');
+      subfolderInput.value = folder;
       updatePopupFolderPreview();
+
+      await chrome.storage.local.set({
+        dola_subfolder: folder
+      });
+
       chrome.runtime.sendMessage({
         type: 'UPDATE_CONFIG',
         config: { subfolder: folder }

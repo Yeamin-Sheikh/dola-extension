@@ -673,8 +673,9 @@
     let completedAll = false;
 
     // Pattern matches phrases denoting completed, rendered, or skipped video prompt numbers
-    // Supports direct verbs ("Videos 1 and 2 generated") as well as intervening descriptions ("Video 3 hit a policy violation and is skipped")
-    const pattern = /(?:videos?|prompts?)\s*(\d+)(?:\s*(?:and|to|-|,)\s*(\d+))?(?:[^.\n;]{0,45}?\s*)?(?:generated|completed|finished|rendered|skipped|created)/gi;
+    // Supports direct verbs ("Videos 1 and 2 generated", "Videos 4 and 5 done"), intervening descriptions ("Video 3 hit a policy violation and is skipped"),
+    // and parenthetical qualifiers ("Videos 1 (retry) and 3 generated")
+    const pattern = /(?:videos?|prompts?)\s*(\d+)(?:\s*\([^)]+\))?(?:\s*(?:and|to|-|,)\s*(\d+)(?:\s*\([^)]+\))?)?(?:[^.\n;]{0,45}?\s*)?(?:generated|completed|finished|rendered|skipped|created|done)\b/gi;
 
     for (const msg of messages) {
       let match;

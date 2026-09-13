@@ -747,9 +747,28 @@
     });
   }
 
+  function dolaNormalizeSubfolder(inputFolder) {
+    if (!inputFolder || typeof inputFolder !== 'string') return 'Dola_Videos';
+    let folder = inputFolder.trim().replace(/\\/g, '/');
+    const downloadsMatch = folder.match(/(?:^|[/\\])Downloads(?:[/\\](.*))?$/i);
+    if (downloadsMatch) {
+      folder = downloadsMatch[1] || '';
+    } else {
+      folder = folder.replace(/^[a-zA-Z]:[/]*/, '');
+      folder = folder.replace(/^Users\/[^/]+\//i, '');
+    }
+    folder = folder.replace(/^\/+|\/+$/g, '');
+    folder = folder.replace(/\/cleaned$/i, '');
+    if (folder.toLowerCase() === 'cleaned') folder = '';
+    const segments = folder.split('/')
+      .map(seg => seg.trim().replace(/[<>:"|?*]/g, '_').replace(/^[.\s]+|[.\s]+$/g, ''))
+      .filter(seg => seg && seg !== '..');
+    return segments.join('/') || 'Dola_Videos';
+  }
+
   function updateCleanedPathPreview() {
     if (settingsCleanedPathPreview && subfolderInput) {
-      const folder = (subfolderInput.value || 'Dola_Videos').trim().replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
+      const folder = dolaNormalizeSubfolder(subfolderInput.value || 'Dola_Videos');
       settingsCleanedPathPreview.textContent = `Downloads/${folder}/cleaned/`;
     }
   }
@@ -773,13 +792,20 @@
     });
   }
 
-  function saveSubfolderConfig() {
-    const raw = (subfolderInput.value || 'Dola_Videos').trim();
-    const folder = raw.replace(/^[/\\]+|[/\\]+$/g, '') || 'Dola_Videos';
+  async function saveSubfolderConfig() {
+    const raw = subfolderInput.value || 'Dola_Videos';
+    const folder = dolaNormalizeSubfolder(raw);
     subfolderInput.value = folder;
     currentSettings.subfolder = folder;
     updateCleanedPathPreview();
 
+    // 1. Direct local storage write for instant, reliable persistence across sessions
+    await safeStorage.set({
+      dola_subfolder: folder,
+      dola_downloader_config: { ...currentSettings, subfolder: folder }
+    });
+
+    // 2. Transmit to background service worker
     safeRuntime.sendMessage({
       type: 'UPDATE_DOWNLOADER_CONFIG',
       config: { subfolder: folder }
@@ -1453,8 +1479,21 @@
         'dola_auto_zoom_enabled',
         'dola_zoom_level',
         'dola_bypass_prompt',
-        'dola_auto_resume_batches'
+        'dola_auto_resume_batches',
+        'dola_subfolder',
+        'dola_downloader_config'
       ]);
+
+      // Subfolder from local storage immediately without waiting for service worker message round-trip
+      if (res.dola_subfolder) {
+        currentSettings.subfolder = dolaNormalizeSubfolder(res.dola_subfolder);
+        if (subfolderInput) subfolderInput.value = currentSettings.subfolder;
+        updateCleanedPathPreview();
+      } else if (res.dola_downloader_config?.subfolder) {
+        currentSettings.subfolder = dolaNormalizeSubfolder(res.dola_downloader_config.subfolder);
+        if (subfolderInput) subfolderInput.value = currentSettings.subfolder;
+        updateCleanedPathPreview();
+      }
 
       // Active tab
       if (res.dola_sidebar_active_tab) {
@@ -1527,8 +1566,11 @@
         if (statusRes && statusRes.ok) {
           if (statusRes.config) {
             autoDownloadToggle.checked = Boolean(statusRes.config.autoDownload);
-            subfolderInput.value = statusRes.config.subfolder || 'Dola_Videos';
-            currentSettings.subfolder = statusRes.config.subfolder || 'Dola_Videos';
+            if (statusRes.config.subfolder) {
+              const normalized = dolaNormalizeSubfolder(statusRes.config.subfolder);
+              subfolderInput.value = normalized;
+              currentSettings.subfolder = normalized;
+            }
             updateCleanedPathPreview();
             if (settingNotificationsToggle && typeof statusRes.config.notifications !== 'undefined') {
               settingNotificationsToggle.checked = Boolean(statusRes.config.notifications);

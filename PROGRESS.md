@@ -6,12 +6,42 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 - **Project:** Dola AI Video Automation & Watermark Removal
 - **Started:** 2026-09-06
-- **Last updated:** 2026-09-06
+- **Last updated:** 2026-09-13
 - **Status:** Active
 
 ---
 
 ## Progress log
+
+### 2026-09-13, Session 27
+
+Status: Done
+
+#### What changed
+- Identified and resolved root cause of custom download directory misplacement where Chrome rejected or corrupted paths containing absolute drive letters (`C:\...`), user folders, or leading `Downloads/` segments by forcing relative POSIX paths.
+- Built unified subfolder normalization utility (`dolaNormalizeSubfolder`) across `background.js`, `sidepanel.js`, and `popup.js`: cleans Windows drive letters, user profile prefixes, leading `Downloads/`, trailing `/cleaned`, and reserved characters, producing clean relative paths.
+- Updated `dolaGenerateFilename` in `background.js` to strictly route all files through `dolaNormalizeSubfolder`, maintaining clean separation of raw and cleaned videos into `<subfolder>/cleaned/`.
+- Updated `onDeterminingFilename` in `background.js` to normalize target filenames to forward slashes and added an extension ID fallback handler for any extension downloads missing from pending maps.
+- Enforced in-memory Blob pipeline (`dolaFetchBlobUrl`) for all ByteDance CDN master streams in `dolaHandleAutoDownload` to prevent external interception from overriding extension folder routing.
+- Added direct `chrome.storage.local` persistence in `saveSubfolderConfig` and instant initialization in `loadInitialState` across `sidepanel.js` and `popup.js`.
+- Added real-time `chrome.storage.onChanged` listener in `background.js` to keep service worker in-memory configuration synchronized with storage modifications immediately.
+- Hardened `dolaOpenCleanedFolder` with strict regex matching (`folderRegex`) to locate and reveal files only in the current user-selected folder.
+- Updated batch progress parser in `content.js` to tolerate parenthetical qualifiers such as `(retry)` and the `done` verb.
+- Bumped extension version to `v2.3.8` across `manifest.json`, `sidepanel.html`, and `README.md`.
+- Re-packaged distribution archive `dola-extension.zip`.
+
+#### Files touched
+- `background.js`: Added `dolaNormalizeSubfolder`, `chrome.storage.onChanged` sync listener, blob routing for master streams, and strict folder regex in `dolaOpenCleanedFolder`.
+- `sidepanel.js`: Added `dolaNormalizeSubfolder`, direct storage persistence, and fast startup subfolder hydration.
+- `popup.js`: Added `dolaNormalizeSubfolder`, storage sync, and dynamic folder preview.
+- `sidepanel.html`: Bumped version badges to v2.3.8.
+- `content.js`: Updated batch progress regex parser.
+- `manifest.json`: Bumped version to 2.3.8.
+- `README.md`: Updated version badges and documentation.
+- `dola-extension.zip`: Re-packaged release archive.
+- `PROGRESS.md`: Logged Session 27 updates.
+
+---
 
 ### 2026-09-13, Session 26
 

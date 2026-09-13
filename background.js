@@ -37,12 +37,57 @@ function dolaExtractCanonicalKey(url, vid) {
   return clean.split('?')[0].toLowerCase();
 }
 
+/**
+ * Normalizes user-specified subfolder paths into safe, relative download paths.
+ * Handles Windows absolute paths (e.g. C:\Users\...\Downloads\MyFolder),
+ * accidental "Downloads/" prefixes, mixed slashes, and illegal filesystem characters.
+ *
+ * @param {string} inputFolder - Raw folder path entered by the user.
+ * @returns {string} Sanitized relative directory path.
+ */
+function dolaNormalizeSubfolder(inputFolder) {
+  if (!inputFolder || typeof inputFolder !== 'string') return 'Dola_Videos';
+
+  let folder = inputFolder.trim().replace(/\\/g, '/');
+
+  // If user pasted a path containing "Downloads", extract only the part after Downloads
+  const downloadsMatch = folder.match(/(?:^|[/\\])Downloads(?:[/\\](.*))?$/i);
+  if (downloadsMatch) {
+    folder = downloadsMatch[1] || '';
+  } else {
+    // Strip Windows drive letters (e.g. "C:/" or "D:/")
+    folder = folder.replace(/^[a-zA-Z]:[/]*/, '');
+    folder = folder.replace(/^Users\/[^/]+\//i, '');
+  }
+
+  folder = folder.replace(/^\/+|\/+$/g, '');
+
+  // Strip trailing "cleaned" segment to prevent nested "cleaned/cleaned" directories
+  folder = folder.replace(/\/cleaned$/i, '');
+  if (folder.toLowerCase() === 'cleaned') {
+    folder = '';
+  }
+
+  // Clean illegal Windows filename characters from each segment while preserving valid hierarchy
+  const segments = folder.split('/')
+    .map(seg => seg.trim().replace(/[<>:"|?*]/g, '_').replace(/^[.\s]+|[.\s]+$/g, ''))
+    .filter(seg => seg && seg !== '..');
+
+  return segments.join('/') || 'Dola_Videos';
+}
+
 async function dolaLoadState() {
   try {
-    const res = await chrome.storage.local.get(['dola_downloader_config', 'dola_download_history', 'dola_downloaded_keys']);
+    const res = await chrome.storage.local.get(['dola_downloader_config', 'dola_subfolder', 'dola_download_history', 'dola_downloaded_keys']);
     if (res.dola_downloader_config) {
       dolaConfig = { ...dolaConfig, ...res.dola_downloader_config };
     }
+    if (res.dola_subfolder) {
+      dolaConfig.subfolder = res.dola_subfolder;
+    }
+    // Strictly normalize configured subfolder
+    dolaConfig.subfolder = dolaNormalizeSubfolder(dolaConfig.subfolder);
+
     if (Array.isArray(res.dola_download_history)) {
       dolaDownloadHistory = res.dola_download_history;
       for (const item of dolaDownloadHistory) {
@@ -64,14 +109,33 @@ async function dolaLoadState() {
 
 async function dolaSaveState() {
   try {
+    dolaConfig.subfolder = dolaNormalizeSubfolder(dolaConfig.subfolder);
     await chrome.storage.local.set({
       dola_downloader_config: dolaConfig,
+      dola_subfolder: dolaConfig.subfolder,
       dola_download_history: dolaDownloadHistory.slice(0, 100),
       dola_downloaded_keys: Array.from(dolaDownloadedKeys).slice(-500)
     });
   } catch (e) {
     console.warn('[Dola Downloader] Failed to save state:', e);
   }
+}
+
+// Keep in-memory config strictly synchronized whenever storage changes from sidepanel or popup
+if (chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
+    if (changes.dola_subfolder && changes.dola_subfolder.newValue) {
+      dolaConfig.subfolder = dolaNormalizeSubfolder(changes.dola_subfolder.newValue);
+      console.log('[Dola Downloader] Synced subfolder from storage change:', dolaConfig.subfolder);
+    }
+    if (changes.dola_downloader_config && changes.dola_downloader_config.newValue) {
+      dolaConfig = { ...dolaConfig, ...changes.dola_downloader_config.newValue };
+      if (changes.dola_downloader_config.newValue.subfolder) {
+        dolaConfig.subfolder = dolaNormalizeSubfolder(changes.dola_downloader_config.newValue.subfolder);
+      }
+    }
+  });
 }
 
 function dolaUpdateBadge() {
@@ -144,11 +208,7 @@ function dolaSanitizeFilename(str) {
 }
 
 function dolaGenerateFilename(video, isCleaned = false) {
-  let folder = (dolaConfig.subfolder || 'Dola_Videos')
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\/+|\/+$/g, '')
-    .replace(/[*?"<>|:]/g, '_');
+  const folder = dolaNormalizeSubfolder(dolaConfig.subfolder || 'Dola_Videos');
 
   // If cleaning a dynamic watermark, route into dedicated cleaned/ subfolder
   let prefix = folder ? `${folder}/` : '';
@@ -472,16 +532,28 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
       const itemUrl = downloadItem.url || '';
       const finalUrl = downloadItem.finalUrl || '';
       const itemId = downloadItem.id;
+      const byExtension = downloadItem.byExtensionId;
 
-      const targetFilename =
+      let targetFilename =
         dolaPendingFilenamesById.get(itemId) ||
         dolaPendingFilenamesByUrl.get(itemUrl) ||
         (finalUrl && dolaPendingFilenamesByUrl.get(finalUrl));
 
+      // If download originated from this extension but was missing from pending map:
+      if (!targetFilename && byExtension === chrome.runtime.id) {
+        const currentFolder = dolaNormalizeSubfolder(dolaConfig.subfolder || 'Dola_Videos');
+        if (downloadItem.filename && downloadItem.filename.endsWith('.mp4')) {
+          const cleanItemName = downloadItem.filename.split(/[/\\]/).pop();
+          targetFilename = `${currentFolder}/${cleanItemName}`;
+        }
+      }
+
       if (targetFilename) {
-        console.log(`[Dola Downloader] onDeterminingFilename: Forcing filename for #${itemId} -> "${targetFilename}"`);
+        // Enforce forward slashes for Chrome's suggest() API
+        const normalized = targetFilename.replace(/\\/g, '/');
+        console.log(`[Dola Downloader] onDeterminingFilename: Forcing filename for #${itemId} -> "${normalized}"`);
         suggest({
-          filename: targetFilename,
+          filename: normalized,
           conflictAction: 'uniquify'
         });
 
@@ -578,19 +650,18 @@ async function dolaHandleAutoDownload(video, force = false) {
 
   try {
     console.log('[Dola Downloader] Downloading raw unwatermarked MP4:', filename, cleanUrl);
-    const isByteDanceCdn = /v16-dola|tos-mya|byteintl|byteoversea|ibytedtos|volces/i.test(cleanUrl);
-    if (!isByteDanceCdn) {
-      try {
-        const blobInfo = await dolaFetchBlobUrl(cleanUrl);
-        if (blobInfo && blobInfo.blobUrl) {
-          downloadTargetUrl = blobInfo.blobUrl;
-          blobId = blobInfo.blobId;
-          usedBlobPipeline = true;
-          console.log('[Dola Downloader] In-memory blob URL acquired:', downloadTargetUrl);
-        }
-      } catch (e) {
-        console.warn('[Dola Downloader] Blob creation skipped, using direct stream:', e);
+    // Route stream through in-memory Blob pipeline to guarantee target folder placement
+    // and prevent external download interceptors from overriding the destination folder.
+    try {
+      const blobInfo = await dolaFetchBlobUrl(cleanUrl);
+      if (blobInfo && blobInfo.blobUrl) {
+        downloadTargetUrl = blobInfo.blobUrl;
+        blobId = blobInfo.blobId;
+        usedBlobPipeline = true;
+        console.log('[Dola Downloader] In-memory blob URL acquired for master stream:', downloadTargetUrl);
       }
+    } catch (e) {
+      console.warn('[Dola Downloader] Blob pipeline error, using direct stream fallback:', e);
     }
 
     // Pre-register URLs in pending maps BEFORE triggering download so onDeterminingFilename catches them
@@ -706,16 +777,13 @@ async function dolaAutoInjectIntoExistingTabs() {
  * 5. Falls back to default downloads directory if all else fails.
  */
 async function dolaOpenCleanedFolder() {
-  const folder = (dolaConfig.subfolder || 'Dola_Videos')
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/^\/+|\/+$/g, '')
-    .replace(/[*?"<>|:]/g, '_');
+  const folder = dolaNormalizeSubfolder(dolaConfig.subfolder || 'Dola_Videos');
   const targetPrefix = folder ? `${folder}/cleaned` : 'cleaned';
+  const folderRegex = new RegExp(`(?:^|[\\/\\\\])${folder}[\\/\\\\]cleaned`, 'i');
 
-  // Tier 1: Check in-memory history for a completed cleaned video download that still exists
+  // Tier 1: Check in-memory history for a completed cleaned video download that still exists in this folder
   for (const entry of dolaDownloadHistory) {
-    if (entry.downloadId && entry.filename && entry.filename.includes('cleaned')) {
+    if (entry.downloadId && entry.filename && folderRegex.test(entry.filename.replace(/\\/g, '/'))) {
       try {
         const results = await chrome.downloads.search({ id: entry.downloadId });
         if (results && results.length > 0 && results[0].exists && results[0].state === 'complete') {
@@ -728,16 +796,16 @@ async function dolaOpenCleanedFolder() {
     }
   }
 
-  // Tier 2: Search Chrome downloads database for existing files in the cleaned folder
+  // Tier 2: Search Chrome downloads database for existing files in THIS cleaned folder
   try {
     const searchResults = await chrome.downloads.search({
       query: ['cleaned'],
       state: 'complete',
       orderBy: ['-startTime'],
-      limit: 30
+      limit: 50
     });
 
-    const match = searchResults.find(r => r.exists && (r.filename.includes('cleaned') || (folder && r.filename.includes(folder))));
+    const match = searchResults.find(r => r.exists && folderRegex.test(r.filename.replace(/\\/g, '/')));
     if (match) {
       chrome.downloads.show(match.id);
       return { ok: true, source: 'search_cleaned', id: match.id };
@@ -748,13 +816,14 @@ async function dolaOpenCleanedFolder() {
 
   // Tier 3: Search Chrome downloads database for any files in the parent folder
   try {
+    const parentRegex = new RegExp(`(?:^|[\\/\\\\])${folder}(?:[\\/\\\\]|$)`, 'i');
     const searchFolder = await chrome.downloads.search({
-      query: [folder || 'Dola_Videos'],
+      query: [folder.split('/').pop() || 'Dola_Videos'],
       state: 'complete',
       orderBy: ['-startTime'],
-      limit: 20
+      limit: 30
     });
-    const folderMatch = searchFolder.find(r => r.exists && r.filename.includes(folder || 'Dola_Videos'));
+    const folderMatch = searchFolder.find(r => r.exists && parentRegex.test(r.filename.replace(/\\/g, '/')));
     if (folderMatch) {
       chrome.downloads.show(folderMatch.id);
       return { ok: true, source: 'search_subfolder', id: folderMatch.id };
@@ -856,7 +925,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'UPDATE_CONFIG' || message.type === 'UPDATE_DOWNLOADER_CONFIG') {
-    dolaConfig = { ...dolaConfig, ...(message.config || {}) };
+    const updated = { ...(message.config || {}) };
+    if (updated.subfolder) {
+      updated.subfolder = dolaNormalizeSubfolder(updated.subfolder);
+    }
+    dolaConfig = { ...dolaConfig, ...updated };
     dolaSaveState().then(() => {
       dolaUpdateBadge();
       sendResponse({ ok: true, config: dolaConfig });
