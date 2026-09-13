@@ -543,8 +543,12 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
       if (!targetFilename && byExtension === chrome.runtime.id) {
         const currentFolder = dolaNormalizeSubfolder(dolaConfig.subfolder || 'Dola_Videos');
         if (downloadItem.filename && downloadItem.filename.endsWith('.mp4')) {
-          const cleanItemName = downloadItem.filename.split(/[/\\]/).pop();
-          targetFilename = `${currentFolder}/${cleanItemName}`;
+          const rawItemFilename = downloadItem.filename.replace(/\\/g, '/');
+          const isCleaned = rawItemFilename.includes('/cleaned/') || rawItemFilename.startsWith('cleaned/') || rawItemFilename.includes('_clean.mp4');
+          const cleanItemName = rawItemFilename.split('/').pop();
+          targetFilename = isCleaned
+            ? `${currentFolder}/cleaned/${cleanItemName}`
+            : `${currentFolder}/${cleanItemName}`;
         }
       }
 
@@ -779,7 +783,8 @@ async function dolaAutoInjectIntoExistingTabs() {
 async function dolaOpenCleanedFolder() {
   const folder = dolaNormalizeSubfolder(dolaConfig.subfolder || 'Dola_Videos');
   const targetPrefix = folder ? `${folder}/cleaned` : 'cleaned';
-  const folderRegex = new RegExp(`(?:^|[\\/\\\\])${folder}[\\/\\\\]cleaned`, 'i');
+  const escapedFolder = folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const folderRegex = new RegExp(`(?:^|[\\/\\\\])${escapedFolder}[\\/\\\\]cleaned`, 'i');
 
   // Tier 1: Check in-memory history for a completed cleaned video download that still exists in this folder
   for (const entry of dolaDownloadHistory) {
@@ -816,7 +821,7 @@ async function dolaOpenCleanedFolder() {
 
   // Tier 3: Search Chrome downloads database for any files in the parent folder
   try {
-    const parentRegex = new RegExp(`(?:^|[\\/\\\\])${folder}(?:[\\/\\\\]|$)`, 'i');
+    const parentRegex = new RegExp(`(?:^|[\\/\\\\])${escapedFolder}(?:[\\/\\\\]|$)`, 'i');
     const searchFolder = await chrome.downloads.search({
       query: [folder.split('/').pop() || 'Dola_Videos'],
       state: 'complete',
