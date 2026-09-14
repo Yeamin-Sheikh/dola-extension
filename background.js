@@ -1078,6 +1078,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+
+  if (message.type === 'TRIGGER_SHOW_VIDEOS_IN_CHAT') {
+    (async () => {
+      try {
+        let activeTab = null;
+        const dolaTabs = await chrome.tabs.query({ url: ['https://*.dola.com/*', 'https://*.doubao.com/*'] });
+        if (dolaTabs && dolaTabs.length > 0) {
+          activeTab = dolaTabs.find(t => t.active) || dolaTabs[0];
+        } else {
+          const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          activeTab = currentTab;
+        }
+
+        if (!activeTab || !activeTab.id) {
+          return sendResponse({ ok: false, error: 'No active Dola AI tab found' });
+        }
+
+        await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          files: ['extractor.js'],
+          world: 'MAIN'
+        }).catch(() => {});
+        await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          files: ['content.js']
+        }).catch(() => {});
+
+        chrome.tabs.sendMessage(activeTab.id, { type: 'SHOW_VIDEOS_IN_CHAT' }, res => {
+          sendResponse(res || { ok: true });
+        });
+      } catch (err) {
+        sendResponse({ ok: false, error: err.message || String(err) });
+      }
+    })();
+    return true;
+  }
 });
 
 // Track tabs zoomed by sidepanel to restore 100% zoom on panel disconnect

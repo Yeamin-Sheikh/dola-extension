@@ -7,6 +7,8 @@
 
   // Elements
   const autoDownloadToggle = document.getElementById('dola-auto-download-toggle');
+  const btnShowVideos = document.getElementById('btn-show-videos');
+  const btnShowVideosText = document.getElementById('btn-show-videos-text');
   const btnDownloadScreen = document.getElementById('btn-download-screen');
   const btnDownloadScreenText = document.getElementById('btn-download-screen-text');
   const metricCount = document.getElementById('dola-metric-count');
@@ -203,6 +205,29 @@
           refreshDownloaderState();
         });
       }
+    });
+  }
+
+  // Show Videos in Chat
+  if (btnShowVideos) {
+    btnShowVideos.addEventListener('click', () => {
+      const originalText = btnShowVideosText ? btnShowVideosText.textContent : 'Show Videos';
+      btnShowVideos.disabled = true;
+      if (btnShowVideosText) btnShowVideosText.textContent = 'Requesting...';
+
+      chrome.runtime.sendMessage({ type: 'TRIGGER_SHOW_VIDEOS_IN_CHAT' }, res => {
+        btnShowVideos.disabled = false;
+        if (chrome.runtime.lastError) {
+          if (btnShowVideosText) btnShowVideosText.textContent = 'Connection error';
+        } else if (res?.ok) {
+          if (btnShowVideosText) btnShowVideosText.textContent = 'Asked to Show!';
+        } else {
+          if (btnShowVideosText) btnShowVideosText.textContent = res?.error || 'Error requesting';
+        }
+        setTimeout(() => {
+          if (btnShowVideosText) btnShowVideosText.textContent = originalText;
+        }, 2500);
+      });
     });
   }
 

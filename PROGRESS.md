@@ -6,12 +6,40 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 - **Project:** Dola AI Video Automation & Watermark Removal
 - **Started:** 2026-09-06
-- **Last updated:** 2026-09-13
+- **Last updated:** 2026-09-14
 - **Status:** Active
 
 ---
 
 ## Progress log
+
+### 2026-09-14, Session 30
+
+Status: Done
+
+#### What changed
+- Implemented automatic video display request upon batch completion in `content.js`: when all prompts in a multi-video generation finish, the extension automatically prompts Dola AI with "Show the videos." via `DOLA_AUTO_CONTINUE_BATCH`, waits for Dola to complete its turn, lets the DOM settle, scans the DOM for all rendered video elements, and queues each detected video directly into the in-browser watermark removal and download pipeline.
+- Added "Show Videos" manual trigger button in both `sidepanel.html` and `popup.html`: positioned side-by-side with "Download on Screen" in a space-efficient flexbox row, allowing users to instruct Dola AI to output video player cards and links on demand.
+- Updated `sidepanel.js` and `popup.js`: added click handlers communicating through `TRIGGER_SHOW_VIDEOS_IN_CHAT` in `background.js` and `SHOW_VIDEOS_IN_CHAT` in `content.js`.
+- Styled `.action-row`, `.btn-action`, and `.btn-show-videos` in `sidepanel.css` and `popup.css` with dark theme compatibility and responsive flex sizing for 125% DPI displays.
+- Bumped extension version to `v2.4.0` across `manifest.json`, `sidepanel.html`, and `README.md`.
+- Re-packaged distribution archive `dola-extension.zip`.
+
+#### Files touched
+- `content.js`: Automatically prompts Dola to show videos on batch completion and queues displayed videos for cleaning; added `SHOW_VIDEOS_IN_CHAT` message handler.
+- `background.js`: Added `TRIGGER_SHOW_VIDEOS_IN_CHAT` handler to target active Dola tab and forward display instruction.
+- `sidepanel.html`: Added `btn-show-videos` button beside `btn-download-screen`; bumped version badge to v2.4.0.
+- `sidepanel.css`: Updated `.action-row` and `.btn-secondary-compact` to two-button horizontal flexbox.
+- `sidepanel.js`: Added click handler for `btnShowVideos`.
+- `popup.html`: Added `btn-show-videos` button beside `btn-download-screen`.
+- `popup.css`: Added `.action-buttons-section .action-row`, `.btn-action`, `.btn-show-videos`, and `.icon-cyan`.
+- `popup.js`: Added element bindings and click listener for `btnShowVideos`.
+- `manifest.json`: Bumped version to 2.4.0.
+- `README.md`: Bumped version badges and download link to v2.4.0.
+- `dola-extension.zip`: Re-packaged release archive.
+- `PROGRESS.md`: Documented Session 30 changes.
+
+---
 
 ### 2026-09-14, Session 29
 

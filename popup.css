@@ -201,27 +201,36 @@ input:checked + .slider:before {
   transform: translateX(18px);
 }
 
-/* Action Button */
+/* Action Buttons */
+.action-buttons-section .action-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
 .btn-action {
   width: 100%;
-  background-color: var(--btn-bg);
+  background-color: var(--btn-bg, #0284c7);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 10px 14px;
+  padding: 9px 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.1s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .btn-action:hover {
-  background-color: var(--btn-hover);
+  background-color: var(--btn-hover, #0369a1);
 }
 
 .btn-action:active {
@@ -234,10 +243,25 @@ input:checked + .slider:before {
   transform: none;
 }
 
+.btn-show-videos {
+  background-color: var(--bg-surface-elevated, #181c26);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #f8fafc);
+}
+
+.btn-show-videos:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
 .btn-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   color: #ffffff;
+  flex-shrink: 0;
+}
+
+.icon-cyan {
+  color: #06b6d4 !important;
 }
 
 /* Stats & Folder Config */

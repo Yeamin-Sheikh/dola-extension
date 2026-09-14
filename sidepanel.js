@@ -36,6 +36,8 @@
   const queueStatusTitle = document.getElementById('queue-status-title');
   const queueStatusDetail = document.getElementById('queue-status-detail');
   const queueProgressBar = document.getElementById('queue-progress-bar');
+  const btnShowVideos = document.getElementById('btn-show-videos');
+  const btnShowVideosText = document.getElementById('btn-show-videos-text');
   const btnDownloadScreen = document.getElementById('btn-download-screen');
   const btnDownloadScreenText = document.getElementById('btn-download-screen-text');
   const historyList = document.getElementById('dola-history-list');
@@ -844,38 +846,58 @@
     btnEmptyOpenFolder.addEventListener('click', () => triggerOpenFolder(btnEmptyOpenFolder));
   }
 
-  // --- 9. Action: Download Video on Screen ---
-  btnDownloadScreen.addEventListener('click', () => {
-    btnDownloadScreen.disabled = true;
-    btnDownloadScreenText.textContent = 'Scanning tab for videos...';
+  // --- 8b. Action: Show Videos in Chat ---
+  if (btnShowVideos) {
+    btnShowVideos.addEventListener('click', () => {
+      btnShowVideos.disabled = true;
+      if (btnShowVideosText) btnShowVideosText.textContent = 'Requesting...';
 
-    safeRuntime.sendMessage({ type: 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD' }, res => {
-      if (typeof chrome !== 'undefined' && chrome.runtime?.lastError) {
-        btnDownloadScreenText.textContent = 'Error scanning tab';
-        setTimeout(() => {
-          btnDownloadScreenText.textContent = 'Download Video on Screen';
-          btnDownloadScreen.disabled = false;
-        }, 2000);
-        return;
-      }
-
-      if (res && res.ok) {
-        const count = res.downloadedCount || 1;
-        btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
-        setTimeout(() => {
-          btnDownloadScreenText.textContent = 'Download Video on Screen';
-          btnDownloadScreen.disabled = false;
-          refreshHistory();
-        }, 2500);
-      } else {
-        btnDownloadScreenText.textContent = res?.message || 'No video detected';
-        setTimeout(() => {
-          btnDownloadScreenText.textContent = 'Download Video on Screen';
-          btnDownloadScreen.disabled = false;
-        }, 2500);
-      }
+      safeRuntime.sendMessage({ type: 'TRIGGER_SHOW_VIDEOS_IN_CHAT' }, res => {
+        btnShowVideos.disabled = false;
+        if (btnShowVideosText) {
+          btnShowVideosText.textContent = res?.ok ? 'Asked to Show!' : 'Error requesting';
+          setTimeout(() => {
+            btnShowVideosText.textContent = 'Show Videos';
+          }, 2500);
+        }
+      });
     });
-  });
+  }
+
+  // --- 9. Action: Download Video on Screen ---
+  if (btnDownloadScreen) {
+    btnDownloadScreen.addEventListener('click', () => {
+      btnDownloadScreen.disabled = true;
+      if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Scanning tab for videos...';
+
+      safeRuntime.sendMessage({ type: 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD' }, res => {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.lastError) {
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Error scanning tab';
+          setTimeout(() => {
+            if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Download on Screen';
+            btnDownloadScreen.disabled = false;
+          }, 2000);
+          return;
+        }
+
+        if (res && res.ok) {
+          const count = res.downloadedCount || 1;
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Queued ${count} for Cleaning!`;
+          setTimeout(() => {
+            if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Download on Screen';
+            btnDownloadScreen.disabled = false;
+            refreshHistory();
+          }, 2500);
+        } else {
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = res?.message || 'No video detected';
+          setTimeout(() => {
+            if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Download on Screen';
+            btnDownloadScreen.disabled = false;
+          }, 2500);
+        }
+      });
+    });
+  }
 
   // --- 9c. In-Browser Watermark Cleaner Integration ---
   const headerCleanerStatus = document.getElementById('header-cleaner-status');

@@ -896,9 +896,54 @@
       // Check if all prompts have been generated
       if (progress.completedAll || progress.maxFound >= totalExpected) {
         console.log(`[Dola Content] 🎉 Batch complete! All ${totalExpected} prompts processed.`);
+
+        // Instruct Dola to show the generated videos so they render in chat
+        reportQueueProgress({
+          title: 'Prompts finished! Showing videos...',
+          detail: 'Telling Dola AI to display all generated videos',
+          currentStep: 3,
+          totalSteps: 3
+        });
+
+        console.log('[Dola Content] 🎬 Requesting Dola to display all generated videos on screen: "Show the videos."');
+        window.dispatchEvent(new CustomEvent('DOLA_AUTO_CONTINUE_BATCH', {
+          detail: {
+            customMessage: 'Show the videos.'
+          }
+        }));
+
+        // Allow Dola time to register and start outputting video elements
+        await sleep(3500);
+
+        // Wait until Dola finishes outputting the video display cards (up to 45s)
+        const showStart = Date.now();
+        while (Date.now() - showStart < 45000) {
+          if (shouldStopQueue) break;
+          const isGen = isDolaGenerating();
+          if (!isGen && Date.now() - showStart > 6000) {
+            break;
+          }
+          await sleep(2000);
+        }
+
+        // Allow DOM to settle
+        await sleep(3000);
+
+        // Scan DOM for newly rendered videos and queue for cleaning/download
+        const displayed = scanDomForDownloadLinks(true);
+        console.log(`[Dola Content] Detected ${displayed.length} video(s) on screen after display request.`);
+        const seenDisplayedKeys = new Set();
+        for (const video of displayed) {
+          const cKey = dolaExtractCanonicalKey(video.url, video.vid);
+          if (!seenDisplayedKeys.has(cKey)) {
+            seenDisplayedKeys.add(cKey);
+            triggerDownload(video, true);
+          }
+        }
+
         reportQueueProgress({
           title: 'Batch generation complete',
-          detail: `All ${totalExpected} video prompts finished successfully.`,
+          detail: `All ${totalExpected} video prompts finished and displayed.`,
           currentStep: 3,
           totalSteps: 3
         });
@@ -1250,6 +1295,17 @@
         }
       })();
       return true;
+    }
+
+    if (message?.type === 'SHOW_VIDEOS_IN_CHAT') {
+      window.dispatchEvent(new CustomEvent('DOLA_AUTO_CONTINUE_BATCH', {
+        detail: {
+          customMessage: 'Show the videos.'
+        }
+      }));
+      showDownloadToast('Displaying Videos', 'Dola Assistant', 'Asked Dola to show generated videos');
+      sendResponse({ ok: true, message: 'Instructed Dola to show videos' });
+      return false;
     }
 
     if (message?.type === 'START_AUTOMATION_QUEUE') {

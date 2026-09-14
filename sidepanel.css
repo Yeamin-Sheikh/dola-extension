@@ -649,15 +649,18 @@ html, body {
 /* Quick Screen Video Action */
 .action-row {
   flex-shrink: 0;
+  display: flex;
+  gap: 6px;
 }
 
 .btn-secondary-compact {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -667,6 +670,7 @@ html, body {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.12s ease;
+  white-space: nowrap;
 }
 
 .btn-secondary-compact:hover {
