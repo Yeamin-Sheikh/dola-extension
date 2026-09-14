@@ -251,7 +251,8 @@
           rawUrl = decodeJsonEscapedFragment(rawUrl);
           if (isHttpUrl(rawUrl)) {
             const prompt = promptFallback || latestSubmittedPrompt || 'Dola Video';
-            const isDynWatermark = rawUrl.includes('video_gen_watermark_dyn');
+            const isByteDanceCdn = rawUrl.includes('/tos-') || rawUrl.includes('dola.dola.com') || rawUrl.includes('dola.com') || rawUrl.includes('byteoversea.com') || rawUrl.includes('ibytedtos.com');
+            const isDynWatermark = rawUrl.includes('video_gen_watermark_dyn') || isByteDanceCdn;
             const isStaticWatermark = !isDynWatermark && rawUrl.includes('video_gen_watermark');
             const watermarkType = isDynWatermark ? 'dynamic' : (isStaticWatermark ? 'static' : 'none');
             const definition = isDynWatermark ? 'Dynamic Watermark' : (isStaticWatermark ? 'Static Watermark' : '1080p Stream');
@@ -452,7 +453,7 @@
       width: Number(meta.vwidth || meta.width || data.vwidth || data.width || 0),
       height: Number(meta.vheight || meta.height || data.vheight || data.height || 0),
       definition: meta.definition || data.definition || '1080P Raw',
-      watermarkType: 'none',
+      watermarkType: (videoUrl.includes('video_gen_watermark_dyn') || videoUrl.includes('/tos-') || videoUrl.includes('dola.dola.com')) ? 'dynamic' : 'none',
       duration: Number(meta.duration || data.duration || 0),
       codec_type: meta.codec_type || data.codec_type || '',
       poster_url: data.poster_url || data.poster || '',

@@ -578,6 +578,57 @@ if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
   });
 }
 
+// Safety net: Intercept any external browser downloads triggered by Dola page
+// (e.g. user clicked native download button on scenes or chat)
+if (chrome.downloads && chrome.downloads.onCreated) {
+  chrome.downloads.onCreated.addListener(async (downloadItem) => {
+    try {
+      const byExtension = downloadItem.byExtensionId;
+      // Allow downloads initiated by this extension
+      if (byExtension === chrome.runtime.id) return;
+
+      const itemUrl = downloadItem.url || '';
+      const finalUrl = downloadItem.finalUrl || '';
+      const referrer = downloadItem.referrer || '';
+      const filename = (downloadItem.filename || '').toLowerCase();
+
+      const isByteDanceCdn =
+        itemUrl.includes('/tos-') ||
+        itemUrl.includes('dola.dola.com') ||
+        itemUrl.includes('dola.com') ||
+        itemUrl.includes('byteoversea.com') ||
+        itemUrl.includes('ibytedtos.com') ||
+        itemUrl.includes('mime_type=video_mp4');
+
+      const isDolaReferrer = referrer.includes('dola.com') || referrer.includes('doubao.com');
+      const isVideoFile = filename.endsWith('.mp4') || itemUrl.includes('.mp4') || itemUrl.includes('mime_type=video_mp4');
+
+      if ((isByteDanceCdn || isDolaReferrer) && isVideoFile) {
+        console.log(`[Dola Downloader] Safety Net: Intercepted external raw download #${downloadItem.id} for "${itemUrl}". Cancelling to clean watermark.`);
+
+        // Cancel and erase external raw download
+        chrome.downloads.cancel(downloadItem.id, () => {
+          chrome.downloads.erase({ id: downloadItem.id }, () => {});
+        });
+
+        // Route into watermark removal queue with force=true
+        const cleanUrl = itemUrl || finalUrl;
+        if (cleanUrl && cleanUrl.startsWith('http')) {
+          dolaHandleAutoDownload({
+            url: cleanUrl,
+            vid: cleanUrl,
+            watermarkType: 'dynamic',
+            source: 'page_download_intercept',
+            timestamp: Date.now()
+          }, true);
+        }
+      }
+    } catch (err) {
+      console.warn('[Dola Downloader] downloads.onCreated intercept error:', err);
+    }
+  });
+}
+
 async function dolaHandleAutoDownload(video, force = false) {
   if (!video || !video.url) return { ok: false, error: 'Invalid video URL' };
   if (!dolaConfig.autoDownload && !force) return { ok: true, downloaded: false, reason: 'Auto-download is paused' };
@@ -604,9 +655,17 @@ async function dolaHandleAutoDownload(video, force = false) {
     }
   }
 
-  const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
-  const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
-  const needsWatermarkCleaning = isDynamic || isStatic;
+  // ByteDance and Dola AI streams always have dynamic watermarks on Seedance 2.5 / Doubao models
+  const isByteDanceCdn = cleanUrl.includes('/tos-') || cleanUrl.includes('dola.dola.com') || cleanUrl.includes('dola.com') || cleanUrl.includes('byteoversea.com') || cleanUrl.includes('ibytedtos.com');
+  const isExplicitRawMaster = video.isRawMaster === true || video.watermarkType === 'raw_master';
+
+  const isDynamic = Boolean(
+    video.watermarkType === 'dynamic' ||
+    cleanUrl.includes('video_gen_watermark_dyn') ||
+    (isByteDanceCdn && !isExplicitRawMaster && video.watermarkType !== 'static')
+  );
+  const isStatic = Boolean(!isDynamic && (video.watermarkType === 'static' || cleanUrl.includes('video_gen_watermark')));
+  const needsWatermarkCleaning = (isDynamic || isStatic) && !isExplicitRawMaster;
   const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : 'none');
   const filename = dolaGenerateFilename(video, needsWatermarkCleaning);
 
@@ -1009,9 +1068,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const scanRes = await chrome.tabs.sendMessage(activeTab.id, { type: 'SCAN_AND_DOWNLOAD_ACTIVE_TAB' });
         if (scanRes?.ok && scanRes.foundCount > 0) {
-          sendResponse({ ok: true, downloadedCount: scanRes.foundCount, unwatermarked: scanRes.unwatermarked, url: scanRes.url });
+          sendResponse({ ok: true, downloadedCount: scanRes.foundCount, message: scanRes.message || `Queued ${scanRes.foundCount} video(s) for cleaning` });
         } else {
-          sendResponse({ ok: false, downloadedCount: 0, message: scanRes?.message || 'No unwatermarked video detected on screen.' });
+          sendResponse({ ok: false, downloadedCount: 0, message: scanRes?.message || 'No video detected on screen.' });
         }
       } catch (err) {
         sendResponse({ ok: false, error: err.message || String(err) });

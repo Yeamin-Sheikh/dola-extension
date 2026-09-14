@@ -847,7 +847,7 @@
   // --- 9. Action: Download Video on Screen ---
   btnDownloadScreen.addEventListener('click', () => {
     btnDownloadScreen.disabled = true;
-    btnDownloadScreenText.textContent = 'Scanning tab for 1080p stream...';
+    btnDownloadScreenText.textContent = 'Scanning tab for videos...';
 
     safeRuntime.sendMessage({ type: 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD' }, res => {
       if (typeof chrome !== 'undefined' && chrome.runtime?.lastError) {
@@ -860,12 +860,13 @@
       }
 
       if (res && res.ok) {
-        btnDownloadScreenText.textContent = 'Downloaded 1080p Raw MP4!';
+        const count = res.downloadedCount || 1;
+        btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
         setTimeout(() => {
           btnDownloadScreenText.textContent = 'Download Video on Screen';
           btnDownloadScreen.disabled = false;
           refreshHistory();
-        }, 2000);
+        }, 2500);
       } else {
         btnDownloadScreenText.textContent = res?.message || 'No video detected';
         setTimeout(() => {

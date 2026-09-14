@@ -35,6 +35,16 @@
       );
       if (!messageTurn) return '';
 
+      // Check within messageTurn itself for a prompt snippet (e.g. "Generated video: ...")
+      const selfPrompts = messageTurn.querySelectorAll('[class*="truncate"], [class*="prompt"], [class*="quote"], span, p');
+      for (const sp of selfPrompts) {
+        const text = (sp.textContent || '').trim();
+        if (text.toLowerCase().includes('generated video:') || (text.length > 20 && !/download\s*video|your video is ready/i.test(text))) {
+          const clean = cleanPromptText(text.replace(/^Generated video:\s*/i, ''));
+          if (clean && clean.length > 5) return clean;
+        }
+      }
+
       let prevTurn = messageTurn.previousElementSibling;
       while (prevTurn) {
         const userText = (prevTurn.textContent || '').trim();
@@ -182,6 +192,7 @@
     try {
       window.removeEventListener('DOLA_VIDEO_EXTRACTED', onVideoExtracted);
       window.removeEventListener('DOLA_USER_PROMPT_SUBMITTED', onUserPromptSubmitted);
+      document.removeEventListener('click', handlePageDownloadClick, true);
     } catch {}
   }
   window.__DOLA_CONTENT_SCRIPT_CLEANUP__ = handleContextInvalidated;
@@ -225,7 +236,8 @@
       }
     }
     resolvedPrompt = cleanPromptText(resolvedPrompt) || 'Dola Video';
-    const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
+    const isByteDanceCdn = cleanUrl.includes('/tos-') || cleanUrl.includes('dola.dola.com') || cleanUrl.includes('dola.com') || cleanUrl.includes('byteoversea.com') || cleanUrl.includes('ibytedtos.com');
+    const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn') || isByteDanceCdn);
     const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
     const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : (video.watermarkType || 'none'));
     const toastLabel = isDynamic ? 'Dynamic Watermark' : (isStatic ? 'Static Watermark' : '1080p Master (Raw)');
@@ -393,14 +405,15 @@
     return 'Dola Video';
   }
 
-  function scanDomForDownloadLinks() {
+  function scanDomForDownloadLinks(forceAll = false) {
     if (!isContextValid()) {
       handleContextInvalidated();
       return [];
     }
     const found = [];
     try {
-      const anchors = document.querySelectorAll('a[href]:not([data-dola-processed])');
+      const anchorSelector = forceAll ? 'a[href]' : 'a[href]:not([data-dola-processed])';
+      const anchors = document.querySelectorAll(anchorSelector);
       for (const a of anchors) {
         const href = a.getAttribute('href') || '';
         if (!href.startsWith('http')) continue;
@@ -408,15 +421,16 @@
         const isVideoLink =
           href.includes('/video/tos/') ||
           href.includes('mime_type=video_mp4') ||
-          href.includes('tos-mya-ve-') ||
-          ((href.includes('dola.dola.com') || href.includes('dola.com')) && href.includes('download=true')) ||
+          href.includes('tos-mya-') ||
+          ((href.includes('dola.dola.com') || href.includes('dola.com')) && (href.includes('download=true') || href.includes('.mp4'))) ||
           /download\s*video/i.test((a.textContent || '').trim());
 
         if (!isVideoLink) continue;
 
         a.setAttribute('data-dola-processed', 'true');
 
-        const isDynamic = href.includes('lr=video_gen_watermark_dyn') || href.includes('video_gen_watermark_dyn');
+        const isByteDanceCdn = href.includes('/tos-') || href.includes('dola.dola.com') || href.includes('dola.com') || href.includes('byteoversea.com') || href.includes('ibytedtos.com');
+        const isDynamic = href.includes('lr=video_gen_watermark_dyn') || href.includes('video_gen_watermark_dyn') || isByteDanceCdn;
         const isStatic = !isDynamic && href.includes('video_gen_watermark');
         const title = extractTitleForLink(a);
         const video = {
@@ -431,18 +445,22 @@
         };
 
         found.push(video);
-        triggerDownload(video);
+        if (!forceAll) {
+          triggerDownload(video);
+        }
       }
 
-      // Also scan HTML5 video elements in chat or preview modals
-      const videoEls = document.querySelectorAll('video:not([data-dola-processed])');
+      // Also scan HTML5 video elements in chat, preview modals, or canvas panels
+      const videoSelector = forceAll ? 'video' : 'video:not([data-dola-processed])';
+      const videoEls = document.querySelectorAll(videoSelector);
       for (const v of videoEls) {
         const src = v.currentSrc || v.src || v.querySelector('source')?.src || '';
         if (!src || !src.startsWith('http')) continue;
 
         v.setAttribute('data-dola-processed', 'true');
 
-        const isDynamic = src.includes('lr=video_gen_watermark_dyn') || src.includes('video_gen_watermark_dyn');
+        const isByteDanceCdn = src.includes('/tos-') || src.includes('dola.dola.com') || src.includes('dola.com') || src.includes('byteoversea.com') || src.includes('ibytedtos.com');
+        const isDynamic = src.includes('lr=video_gen_watermark_dyn') || src.includes('video_gen_watermark_dyn') || isByteDanceCdn;
         const isStatic = !isDynamic && src.includes('video_gen_watermark');
         const title = extractTitleForLink(v);
         const video = {
@@ -457,7 +475,9 @@
         };
 
         found.push(video);
-        triggerDownload(video);
+        if (!forceAll) {
+          triggerDownload(video);
+        }
       }
     } catch (e) {
       if (!isContextValid() || e?.message?.includes('context invalidated')) {
@@ -486,6 +506,133 @@
       setTimeout(scanDomForDownloadLinks, 1000);
     });
   }
+
+  // --- Page Download Click Interceptor ---
+  function isDownloadTrigger(el) {
+    if (!el || el === document.body || el === document.documentElement) return false;
+
+    // Reject desktop Windows app installer promo
+    const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+    if (text.includes('download for windows')) return false;
+
+    // Check tag and attributes
+    const tag = (el.tagName || '').toLowerCase();
+    const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+    const title = (el.getAttribute('title') || '').toLowerCase();
+    const href = (el.getAttribute('href') || '').toLowerCase();
+    const className = (el.className && typeof el.className === 'string') ? el.className.toLowerCase() : '';
+
+    if (aria.includes('download') || title.includes('download') || className.includes('download')) {
+      return true;
+    }
+
+    if (tag === 'a' && (href.includes('download=true') || href.includes('mime_type=video_mp4') || href.includes('/video/tos/'))) {
+      return true;
+    }
+
+    // Check SVG icons for download glyph paths
+    const svgs = el.querySelectorAll ? el.querySelectorAll('svg') : [];
+    for (const svg of svgs) {
+      const svgHtml = svg.innerHTML || '';
+      if (
+        svgHtml.includes('M20.375 14.8535') ||
+        svgHtml.includes('M12.001 1.99219') ||
+        svgHtml.includes('14.8535') ||
+        svgHtml.includes('16.6367') ||
+        /m\s*12[,\s].*v\s*13/i.test(svgHtml)
+      ) {
+        return true;
+      }
+    }
+
+    if (tag === 'svg' || tag === 'path') {
+      const parentBtn = el.closest('button, a, [role="button"], div');
+      if (parentBtn && parentBtn !== el) {
+        return isDownloadTrigger(parentBtn);
+      }
+    }
+
+    return false;
+  }
+
+  async function handlePageDownloadClick(event) {
+    try {
+      const target = event.target;
+      if (!target) return;
+
+      const triggerEl = (target.closest && target.closest('button, a, [role="button"], div')) || target;
+      if (!isDownloadTrigger(triggerEl) && !isDownloadTrigger(target)) return;
+
+      const fullText = (triggerEl.innerText || triggerEl.textContent || '').toLowerCase();
+      if (fullText.includes('download for windows')) return;
+
+      console.log('[Dola Content] Intercepted on-page download click:', triggerEl);
+
+      // Stop native uncleaned browser download from firing
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const container = (triggerEl.closest && triggerEl.closest('[data-message-id], aside, .video-canvas-panel-player-wrapper-oSvSkP, .block-video-MzfWVN, [class*="message"], [class*="card"], [class*="scene"]')) || document.body;
+
+      let videosToDownload = [];
+      const containerVideos = Array.from(container.querySelectorAll('video')).map(v => v.currentSrc || v.src).filter(Boolean);
+      const containerAnchors = Array.from(container.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(h => h.includes('/video/tos/') || h.includes('mime_type=video_mp4') || h.includes('tos-mya-'));
+
+      const combinedUrls = [...containerVideos, ...containerAnchors];
+
+      if (combinedUrls.length === 0) {
+        const domAll = scanDomForDownloadLinks(true);
+        const mainWorldAll = await requestMainWorldMedia(1000);
+        const all = [...(mainWorldAll || []), ...domAll].filter(v => v && v.url);
+        if (all.length > 0) {
+          videosToDownload = all;
+        }
+      } else {
+        const title = extractTitleForLink(triggerEl) || findPromptInChatDom(triggerEl);
+        for (const url of combinedUrls) {
+          videosToDownload.push({
+            url,
+            vid: url,
+            title,
+            prompt: title,
+            watermarkType: 'dynamic',
+            source: 'page_download_click',
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      // Deduplicate by canonical key
+      const seen = new Set();
+      const uniqueToQueue = [];
+      for (const v of videosToDownload) {
+        const cKey = dolaExtractCanonicalKey(v.url, v.vid);
+        if (!seen.has(cKey)) {
+          seen.add(cKey);
+          uniqueToQueue.push(v);
+        }
+      }
+
+      if (uniqueToQueue.length > 0) {
+        for (const v of uniqueToQueue) {
+          triggerDownload(v, true);
+        }
+        showDownloadToast(uniqueToQueue[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${uniqueToQueue.length} video(s)...`);
+      } else {
+        const domAll = scanDomForDownloadLinks(true);
+        if (domAll.length > 0) {
+          for (const v of domAll) {
+            triggerDownload(v, true);
+          }
+          showDownloadToast(domAll[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${domAll.length} video(s)...`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Dola Content] Click interception error:', err);
+    }
+  }
+
+  document.addEventListener('click', handlePageDownloadClick, true);
 
   // --- 2. Automated Generation Sequence Controller ---
   let isQueueRunning = false;
@@ -1067,14 +1214,33 @@
     if (message?.type === 'SCAN_AND_DOWNLOAD_ACTIVE_TAB') {
       (async () => {
         try {
-          const domVideos = scanDomForDownloadLinks();
+          const domVideos = scanDomForDownloadLinks(true);
           const mainWorldVideos = await requestMainWorldMedia(1200);
-          const allVideos = [...(mainWorldVideos || []), ...domVideos].filter(v => v && v.url);
+          const rawVideos = [...(mainWorldVideos || []), ...domVideos].filter(v => v && v.url && v.url.startsWith('http'));
 
-          if (allVideos.length > 0) {
-            const target = allVideos[allVideos.length - 1];
-            triggerDownload(target, true);
-            sendResponse({ ok: true, foundCount: allVideos.length, unwatermarked: true, url: target.url });
+          // Deduplicate by canonical key
+          const seenKeys = new Set();
+          const uniqueVideos = [];
+          for (const v of rawVideos) {
+            const cKey = dolaExtractCanonicalKey(v.url, v.vid);
+            if (!seenKeys.has(cKey)) {
+              seenKeys.add(cKey);
+              uniqueVideos.push(v);
+            }
+          }
+
+          if (uniqueVideos.length > 0) {
+            for (const v of uniqueVideos) {
+              triggerDownload(v, true);
+            }
+            const count = uniqueVideos.length;
+            sendResponse({
+              ok: true,
+              foundCount: count,
+              message: `Queued ${count} video(s) for watermark removal`,
+              url: uniqueVideos[0].url
+            });
+            showDownloadToast(uniqueVideos[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${count} video(s)...`);
             return;
           }
 

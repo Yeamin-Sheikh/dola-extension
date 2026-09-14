@@ -13,6 +13,34 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 ## Progress log
 
+### 2026-09-14, Session 29
+
+Status: Done
+
+#### What changed
+- Added on-page download click interceptor (`handlePageDownloadClick` and `isDownloadTrigger`) in `content.js` to intercept clicks on Dola's native download buttons across scenes, chat message cards, and the preview canvas panel in the capture phase.
+- Prevented uncleaned browser downloads from executing (`preventDefault()` and `stopImmediatePropagation()`), dynamically discovered associated scene videos and prompts, and dispatched them with `force: true` and `watermarkType: 'dynamic'` into `dolaCleanerQueue`.
+- Added safety net download interceptor in `background.js` via `chrome.downloads.onCreated`: catches any external raw video downloads initiated from Dola AI or ByteDance CDN domains, immediately cancels and erases them from the browser, and diverts them into `dolaHandleAutoDownload(..., true)` for offscreen watermark removal.
+- Fixed watermark type classification across `background.js`, `content.js`, and `extractor.js`: modern ByteDance Seedance 2.5 CDN URLs (`tos-mya-*`, `v*-dola.dola.com`) lacking `video_gen_watermark` query parameters now default to `watermarkType: 'dynamic'` and `needsWatermarkCleaning = true` instead of being bypassed as raw files.
+- Upgraded `SCAN_AND_DOWNLOAD_ACTIVE_TAB` in `content.js`: removed single-video constraint, added `forceAll = true` flag to `scanDomForDownloadLinks` to bypass `data-dola-processed` locks during explicit manual scans, deduplicated all unique videos by canonical key, and queued every scene video for offscreen inpainting.
+- Enhanced `findPromptInChatDom` to extract prompt text directly from within the message turn's header (`Generated video: ...`) before falling back to preceding conversational turns.
+- Updated feedback messages in `sidepanel.js` and `popup.js` to report exact queued video counts for watermark cleaning.
+- Bumped extension version to `v2.3.9` across `manifest.json`, `sidepanel.html`, and `README.md`.
+- Re-packaged distribution archive `dola-extension.zip`.
+
+#### Files touched
+- `background.js`: Added `chrome.downloads.onCreated` safety net interceptor, updated watermark classification to default ByteDance streams to dynamic inpainting, and updated manual scan response.
+- `content.js`: Added `handlePageDownloadClick`, `isDownloadTrigger`, enhanced `findPromptInChatDom`, added `forceAll` mode to `scanDomForDownloadLinks`, and upgraded `SCAN_AND_DOWNLOAD_ACTIVE_TAB` to batch process all scene videos.
+- `extractor.js`: Set default `watermarkType: 'dynamic'` for ByteDance CDN streams in `scanTextForDirectVideoUrls` and fallback API parser.
+- `sidepanel.js`: Updated manual download button feedback text to reflect queued cleaning count.
+- `popup.js`: Updated manual download button feedback text to reflect queued cleaning count.
+- `sidepanel.html`: Bumped version badges to v2.3.9.
+- `manifest.json`: Bumped version to 2.3.9.
+- `README.md`: Updated version badges and release archive link to v2.3.9.
+- `PROGRESS.md`: Logged Session 29 updates.
+
+---
+
 ### 2026-09-13, Session 28
 
 Status: Done

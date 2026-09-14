@@ -211,14 +211,15 @@
     btnDownloadScreen.addEventListener('click', () => {
       const originalText = btnDownloadScreenText.textContent;
       btnDownloadScreen.disabled = true;
-      btnDownloadScreenText.textContent = 'Scanning for 1080p Stream...';
+      btnDownloadScreenText.textContent = 'Scanning for videos...';
 
       chrome.runtime.sendMessage({ type: 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD' }, res => {
         btnDownloadScreen.disabled = false;
         if (chrome.runtime.lastError) {
           btnDownloadScreenText.textContent = 'Connection error';
         } else if (res?.ok && res.downloadedCount > 0) {
-          btnDownloadScreenText.textContent = 'Video Downloaded (No Watermark)!';
+          const count = res.downloadedCount || 1;
+          btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
         } else {
           btnDownloadScreenText.textContent = res?.message || 'No video detected';
         }
