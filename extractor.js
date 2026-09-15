@@ -154,6 +154,178 @@
     return typeof url === 'string' && /^https?:\/\//i.test(url);
   }
 
+  /**
+   * React Fiber and Internal Component State Inspector (MAIN World)
+   * Why: Modern single-page React applications (like Dola AI and Doubao) frequently render
+   * HTML5 <video> elements with local 'blob:https://...' URLs or keep full API models inside
+   * React fiber props rather than raw HTML attributes.
+   * This utility inspects React internal fiber trees (__reactFiber$ and __reactProps$)
+   * to resolve the underlying ByteDance CDN video streams (tos-mya-*, /video/tos/, etc.)
+   * directly from component state.
+   */
+  function isByteDanceVideoUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const clean = url.trim();
+    if (!clean.startsWith('http')) return false;
+    return (
+      clean.includes('/video/tos/') ||
+      clean.includes('tos-mya-') ||
+      clean.includes('mime_type=video_mp4') ||
+      clean.includes('dola.dola.com') ||
+      clean.includes('dola.com') ||
+      clean.includes('byteoversea.com') ||
+      clean.includes('ibytedtos.com') ||
+      clean.includes('volces.com') ||
+      clean.includes('video_gen_watermark')
+    );
+  }
+
+  function extractVideoFromObject(obj, visited = new Set(), depth = 0) {
+    if (!obj || typeof obj !== 'object' || depth > 5 || visited.has(obj)) return null;
+    visited.add(obj);
+
+    // Direct video URL candidate properties
+    const urlCandidates = [
+      obj.video_url,
+      obj.videoUrl,
+      obj.video_download_url,
+      obj.download_url,
+      obj.downloadUrl,
+      obj.origin_url,
+      obj.originUrl,
+      obj.play_addr,
+      obj.playAddr,
+      obj.src,
+      obj.url
+    ];
+
+    for (const cand of urlCandidates) {
+      if (typeof cand === 'string' && isByteDanceVideoUrl(cand)) {
+        const promptCandidate =
+          obj.prompt ||
+          obj.title ||
+          obj.text ||
+          obj.query ||
+          obj.user_prompt ||
+          obj.caption ||
+          latestSubmittedPrompt ||
+          'Dola Video';
+        return {
+          url: cand,
+          vid: cand,
+          prompt: cleanUserPrompt(promptCandidate),
+          watermarkType: cand.includes('video_gen_watermark_dyn') || isByteDanceVideoUrl(cand) ? 'dynamic' : 'none'
+        };
+      }
+      if (Array.isArray(cand)) {
+        for (const item of cand) {
+          if (typeof item === 'string' && isByteDanceVideoUrl(item)) {
+            return {
+              url: item,
+              vid: item,
+              prompt: cleanUserPrompt(obj.prompt || obj.title || latestSubmittedPrompt || 'Dola Video'),
+              watermarkType: 'dynamic'
+            };
+          }
+        }
+      }
+    }
+
+    // Traverse common container keys
+    const nestedKeys = ['item', 'creation', 'video', 'data', 'props', 'message', 'card', 'scene', 'value'];
+    for (const k of nestedKeys) {
+      if (obj[k] && typeof obj[k] === 'object') {
+        const found = extractVideoFromObject(obj[k], visited, depth + 1);
+        if (found) return found;
+      }
+    }
+
+    return null;
+  }
+
+  function findVideoInReactFiber(domNode) {
+    if (!domNode) return null;
+    let curr = domNode;
+    let levels = 0;
+
+    while (curr && levels < 10) {
+      // 1. Check direct __reactProps$
+      const propsKey = Object.keys(curr).find(k => k.startsWith('__reactProps$'));
+      if (propsKey && curr[propsKey]) {
+        const match = extractVideoFromObject(curr[propsKey]);
+        if (match) return match;
+      }
+
+      // 2. Check fiber tree
+      const fiberKey = Object.keys(curr).find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+      if (fiberKey && curr[fiberKey]) {
+        let fiber = curr[fiberKey];
+        let fiberDepth = 0;
+        while (fiber && fiberDepth < 15) {
+          if (fiber.memoizedProps) {
+            const match = extractVideoFromObject(fiber.memoizedProps);
+            if (match) return match;
+          }
+          if (fiber.memoizedState) {
+            const match = extractVideoFromObject(fiber.memoizedState);
+            if (match) return match;
+          }
+          fiber = fiber.return;
+          fiberDepth++;
+        }
+      }
+
+      curr = curr.parentElement;
+      levels++;
+    }
+
+    return null;
+  }
+
+  function scanDomForVideosLive() {
+    const discovered = [];
+    const seenUrls = new Set();
+
+    try {
+      // 1. Scan all video tags on screen
+      const videoEls = document.querySelectorAll('video');
+      for (const v of videoEls) {
+        // Inspect React fiber for original CDN URL
+        const fiberVideo = findVideoInReactFiber(v);
+        if (fiberVideo && fiberVideo.url && !seenUrls.has(fiberVideo.url)) {
+          seenUrls.add(fiberVideo.url);
+          discovered.push(fiberVideo);
+          addExtractedVideo(fiberVideo);
+        } else if (v.currentSrc && isByteDanceVideoUrl(v.currentSrc) && !seenUrls.has(v.currentSrc)) {
+          seenUrls.add(v.currentSrc);
+          const item = {
+            url: v.currentSrc,
+            vid: v.currentSrc,
+            prompt: latestSubmittedPrompt || 'Dola Video',
+            watermarkType: 'dynamic'
+          };
+          discovered.push(item);
+          addExtractedVideo(item);
+        }
+      }
+
+      // 2. Scan download buttons / scene cards
+      const cardEls = document.querySelectorAll('[data-message-id], [class*="scene"], [class*="video"], [class*="card"], [class*="player"]');
+      for (const card of cardEls) {
+        const match = findVideoInReactFiber(card);
+        if (match && match.url && !seenUrls.has(match.url)) {
+          seenUrls.add(match.url);
+          discovered.push(match);
+          addExtractedVideo(match);
+        }
+      }
+    } catch (e) {
+      console.log('[Dola Extractor] Live DOM scan error:', e);
+    }
+
+    return discovered;
+  }
+
   function addExtractedVideo(videoInfo) {
     if (!videoInfo || !videoInfo.url) return;
     const url = normalizeImageUrl(videoInfo.url);
@@ -218,11 +390,28 @@
     const url = this._url;
     const requestPrompt = extractPromptFromPayload(args[0]) || latestSubmittedPrompt;
     this.addEventListener('load', function () {
-      if (url && (url.includes('/im/chain/single') || url.includes('/chat/completion') || url.includes('/samantha/'))) {
-        try {
-          if (!this.responseType || this.responseType === 'text') {
-            const text = this.responseText;
-            if (text) {
+      if (!url) return;
+      try {
+        if (!this.responseType || this.responseType === 'text') {
+          const text = this.responseText;
+          if (text) {
+            // Check if response contains video signatures or comes from Dola/Doubao chat/api
+            const hasVideoSig =
+              text.includes('/video/tos/') ||
+              text.includes('tos-mya-') ||
+              text.includes('mime_type=video_mp4') ||
+              text.includes('fallback_api') ||
+              text.includes('creation_block') ||
+              text.includes('creations');
+            const isRelevantUrl =
+              url.includes('/im/') ||
+              url.includes('/chat/') ||
+              url.includes('/api/') ||
+              url.includes('/samantha/') ||
+              url.includes('/video/') ||
+              url.includes('/creation/');
+
+            if (hasVideoSig || isRelevantUrl) {
               try {
                 const data = JSON.parse(text);
                 processDoubaoFallbackVideos(data, text, '', requestPrompt);
@@ -230,8 +419,8 @@
               scanTextForDirectVideoUrls(text, requestPrompt);
             }
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     });
     return originalXHRSend.apply(this, args);
   };
@@ -279,17 +468,7 @@
     const requestBody = options?.body || (typeof url === 'object' ? url.body : null);
     const requestPrompt = extractPromptFromPayload(requestBody) || latestSubmittedPrompt;
 
-    if (requestUrl && requestUrl.includes('/im/chain/single')) {
-      const response = await originalFetch.apply(this, args);
-      response.clone().text().then(text => {
-        try {
-          const data = JSON.parse(text);
-          processDoubaoFallbackVideos(data, text, '', requestPrompt);
-        } catch (e) {}
-      }).catch(() => {});
-      return response;
-    }
-
+    // Handle streamed completions
     if (requestUrl && requestUrl.includes('/chat/completion')) {
       const response = await originalFetch.apply(this, args);
       if (!response.body || typeof response.body.getReader !== 'function') {
@@ -340,7 +519,38 @@
       });
     }
 
-    return originalFetch.apply(this, args);
+    // For all standard non-streamed JSON and API requests on Dola / Doubao
+    const response = await originalFetch.apply(this, args);
+    try {
+      if (requestUrl && (
+        requestUrl.includes('/im/') ||
+        requestUrl.includes('/api/') ||
+        requestUrl.includes('/video/') ||
+        requestUrl.includes('/conversation/') ||
+        requestUrl.includes('/creation/') ||
+        requestUrl.includes('dola.com') ||
+        requestUrl.includes('doubao.com')
+      )) {
+        response.clone().text().then(text => {
+          if (text && (
+            text.includes('/video/tos/') ||
+            text.includes('tos-mya-') ||
+            text.includes('mime_type=video_mp4') ||
+            text.includes('fallback_api') ||
+            text.includes('creation_block') ||
+            text.includes('creations')
+          )) {
+            try {
+              const data = JSON.parse(text);
+              processDoubaoFallbackVideos(data, text, '', requestPrompt);
+            } catch (e) {}
+            scanTextForDirectVideoUrls(text, requestPrompt);
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    return response;
   };
 
   function processDoubaoFallbackVideos(json, rawBody = '', posterUrl = '', promptFallback = '') {
@@ -811,11 +1021,61 @@
       window.removeEventListener('DOLA_GET_CHAT_MEDIA', window.__DOLA_MEDIA_LISTENER__);
     }
     window.__DOLA_MEDIA_LISTENER__ = () => {
+      // Run live DOM + React fiber scan to catch all visible or newly rendered videos
+      scanDomForVideosLive();
       window.dispatchEvent(new CustomEvent('DOLA_CHAT_MEDIA_RESPONSE', {
         detail: { videos: extractedVideos }
       }));
     };
     window.addEventListener('DOLA_GET_CHAT_MEDIA', window.__DOLA_MEDIA_LISTENER__);
+
+    // 2. MAIN-world On-Page Download Click Bridge
+    // Why: When the user clicks native download buttons inside Dola AI or Doubao,
+    // this listener in the page's MAIN world synchronously inspects the clicked element's
+    // React Fiber tree. It extracts the underlying ByteDance CDN video object and dispatches
+    // DOLA_PAGE_DOWNLOAD_CLICKED so content.js can queue the video for watermark removal.
+    if (window.__DOLA_PAGE_DOWNLOAD_CLICK_LISTENER__) {
+      document.removeEventListener('click', window.__DOLA_PAGE_DOWNLOAD_CLICK_LISTENER__, true);
+    }
+    window.__DOLA_PAGE_DOWNLOAD_CLICK_LISTENER__ = event => {
+      try {
+        const target = event.target;
+        if (!target) return;
+
+        const triggerBtn = (target.closest && target.closest('button, a, [role="button"], div')) || target;
+        const text = (triggerBtn.innerText || triggerBtn.textContent || '').toLowerCase();
+        if (text.includes('download for windows')) return;
+
+        const aria = (triggerBtn.getAttribute('aria-label') || '').toLowerCase();
+        const title = (triggerBtn.getAttribute('title') || '').toLowerCase();
+        const className = (triggerBtn.className && typeof triggerBtn.className === 'string') ? triggerBtn.className.toLowerCase() : '';
+        const isDownloadBtn = aria.includes('download') || title.includes('download') || className.includes('download') || text.includes('download');
+
+        let hasDownloadSvg = false;
+        const svgs = triggerBtn.querySelectorAll ? triggerBtn.querySelectorAll('svg') : [];
+        for (const svg of svgs) {
+          const svgHtml = svg.innerHTML || '';
+          if (svgHtml.includes('14.8535') || svgHtml.includes('16.6367') || /m\s*12/i.test(svgHtml)) {
+            hasDownloadSvg = true;
+            break;
+          }
+        }
+
+        if (isDownloadBtn || hasDownloadSvg) {
+          const resolvedVideo = findVideoInReactFiber(triggerBtn);
+          if (resolvedVideo && resolvedVideo.url) {
+            console.log('[Dola Extractor] 🎯 Resolved download button click via React Fiber:', resolvedVideo);
+            addExtractedVideo(resolvedVideo);
+            window.dispatchEvent(new CustomEvent('DOLA_PAGE_DOWNLOAD_CLICKED', {
+              detail: resolvedVideo
+            }));
+          }
+        }
+      } catch (err) {
+        console.log('[Dola Extractor] Click inspection error:', err);
+      }
+    };
+    document.addEventListener('click', window.__DOLA_PAGE_DOWNLOAD_CLICK_LISTENER__, true);
 
     // 2. Click New Chat button
     if (window.__DOLA_NEW_CHAT_LISTENER__) {

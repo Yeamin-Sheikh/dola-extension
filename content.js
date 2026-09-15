@@ -192,6 +192,7 @@
     try {
       window.removeEventListener('DOLA_VIDEO_EXTRACTED', onVideoExtracted);
       window.removeEventListener('DOLA_USER_PROMPT_SUBMITTED', onUserPromptSubmitted);
+      window.removeEventListener('DOLA_PAGE_DOWNLOAD_CLICKED', onPageDownloadClicked);
       document.removeEventListener('click', handlePageDownloadClick, true);
     } catch {}
   }
@@ -220,9 +221,6 @@
         return;
       }
     }
-    downloadedMediaKeys.add(canonicalKey);
-    downloadedMediaKeys.add(mediaKey);
-    downloadedMediaKeys.add(cleanUrl);
 
     let resolvedPrompt = cleanPromptText(video.prompt || video.title || '');
     if (!resolvedPrompt || resolvedPrompt === 'Dola Video' || /download\s*video/i.test(resolvedPrompt)) {
@@ -261,11 +259,18 @@
         if (!isContextValid() || chrome.runtime.lastError) {
           return;
         }
-        if (response?.ok && response?.notifications) {
-          if (response?.queued) {
-            showDownloadToast(resolvedPrompt, 'In-Browser Cleaner', 'Cleaning watermark before saving...');
-          } else if (response?.downloaded) {
-            showDownloadToast(resolvedPrompt, toastLabel, 'Saved directly to Downloads folder');
+        // Only mark media as downloaded if it was actually queued for cleaning or downloaded directly
+        if (response?.ok && (response?.queued || response?.downloaded)) {
+          downloadedMediaKeys.add(canonicalKey);
+          downloadedMediaKeys.add(mediaKey);
+          downloadedMediaKeys.add(cleanUrl);
+
+          if (response?.notifications) {
+            if (response?.queued) {
+              showDownloadToast(resolvedPrompt, 'In-Browser Cleaner', 'Cleaning watermark before saving...');
+            } else if (response?.downloaded) {
+              showDownloadToast(resolvedPrompt, toastLabel, 'Saved directly to Downloads folder');
+            }
           }
         }
       });
@@ -343,6 +348,35 @@
 
   window.addEventListener('DOLA_VIDEO_EXTRACTED', onVideoExtracted);
   window.addEventListener('DOLA_USER_PROMPT_SUBMITTED', onUserPromptSubmitted);
+
+  // 1c. Listen for MAIN-world resolved download clicks via React Fiber
+  // Why: When the user clicks native download buttons inside Dola AI or Doubao,
+  // extractor.js in the page's MAIN world inspects the React Fiber component tree,
+  // resolves the exact ByteDance CDN stream, and dispatches DOLA_PAGE_DOWNLOAD_CLICKED.
+  // We immediately queue the resolved video with force=true for in-browser watermark removal.
+  const onPageDownloadClicked = event => {
+    try {
+      if (!isContextValid()) {
+        handleContextInvalidated();
+        return;
+      }
+      const video = event?.detail;
+      if (video && video.url) {
+        console.log('[Dola Content] 🎯 Intercepted on-page download from MAIN-world React Fiber:', video);
+        triggerDownload({
+          ...video,
+          watermarkType: 'dynamic',
+          source: 'react_fiber_click'
+        }, true);
+      }
+    } catch (e) {
+      if (!isContextValid() || e?.message?.includes('context invalidated')) {
+        handleContextInvalidated();
+      }
+    }
+  };
+
+  window.addEventListener('DOLA_PAGE_DOWNLOAD_CLICKED', onPageDownloadClicked);
 
   // --- 1b. Chat DOM Scanner for Markdown [Download Video] Links ---
   function extractTitleForLink(linkEl) {
@@ -555,6 +589,16 @@
     return false;
   }
 
+  /**
+   * Safe On-Page Download Click Interceptor
+   * Why: When the user clicks Dola's native download button on a scene card, message bubble,
+   * or player toolbar, we intercept the event to extract the underlying video and route it
+   * into our in-browser watermark removal pipeline.
+   * Crucial safety guarantee: We ONLY call event.preventDefault() and stopImmediatePropagation()
+   * IF we have successfully resolved and queued a valid video stream for cleaning.
+   * If resolution fails (e.g. dynamic blob URL), we DO NOT block the native click, ensuring
+   * the user's buttons never become dead or unresponsive.
+   */
   async function handlePageDownloadClick(event) {
     try {
       const target = event.target;
@@ -566,24 +610,20 @@
       const fullText = (triggerEl.innerText || triggerEl.textContent || '').toLowerCase();
       if (fullText.includes('download for windows')) return;
 
-      console.log('[Dola Content] Intercepted on-page download click:', triggerEl);
-
-      // Stop native uncleaned browser download from firing
-      event.preventDefault();
-      event.stopImmediatePropagation();
+      console.log('[Dola Content] On-page download trigger clicked:', triggerEl);
 
       const container = (triggerEl.closest && triggerEl.closest('[data-message-id], aside, .video-canvas-panel-player-wrapper-oSvSkP, .block-video-MzfWVN, [class*="message"], [class*="card"], [class*="scene"]')) || document.body;
 
       let videosToDownload = [];
       const containerVideos = Array.from(container.querySelectorAll('video')).map(v => v.currentSrc || v.src).filter(Boolean);
-      const containerAnchors = Array.from(container.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(h => h.includes('/video/tos/') || h.includes('mime_type=video_mp4') || h.includes('tos-mya-'));
+      const containerAnchors = Array.from(container.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(h => h.includes('/video/tos/') || h.includes('mime_type=video_mp4') || h.includes('tos-mya-') || h.includes('dola.dola.com'));
 
-      const combinedUrls = [...containerVideos, ...containerAnchors];
+      const combinedUrls = [...containerVideos, ...containerAnchors].filter(u => u && (u.startsWith('http://') || u.startsWith('https://')));
 
       if (combinedUrls.length === 0) {
         const domAll = scanDomForDownloadLinks(true);
-        const mainWorldAll = await requestMainWorldMedia(1000);
-        const all = [...(mainWorldAll || []), ...domAll].filter(v => v && v.url);
+        const mainWorldAll = await requestMainWorldMedia(800);
+        const all = [...(mainWorldAll || []), ...domAll].filter(v => v && v.url && (v.url.startsWith('http://') || v.url.startsWith('https://')));
         if (all.length > 0) {
           videosToDownload = all;
         }
@@ -614,18 +654,17 @@
       }
 
       if (uniqueToQueue.length > 0) {
+        // Valid video streams confirmed: prevent uncleaned browser download
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
         for (const v of uniqueToQueue) {
           triggerDownload(v, true);
         }
         showDownloadToast(uniqueToQueue[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${uniqueToQueue.length} video(s)...`);
       } else {
-        const domAll = scanDomForDownloadLinks(true);
-        if (domAll.length > 0) {
-          for (const v of domAll) {
-            triggerDownload(v, true);
-          }
-          showDownloadToast(domAll[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${domAll.length} video(s)...`);
-        }
+        // No HTTP stream resolved directly in content script: allow native event to proceed
+        console.log('[Dola Content] No direct HTTP video stream resolved synchronously; allowing native download event to proceed.');
       }
     } catch (err) {
       console.warn('[Dola Content] Click interception error:', err);

@@ -232,24 +232,26 @@
   }
 
   // Grab Screen Video
+  // Why: Allows manual one-click video detection and watermark removal even when auto-download is turned off.
+  // Triggers TRIGGER_PAGE_SCAN_AND_DOWNLOAD to scan active Dola DOM & React Fiber trees.
   if (btnDownloadScreen) {
     btnDownloadScreen.addEventListener('click', () => {
-      const originalText = btnDownloadScreenText.textContent;
+      const originalText = btnDownloadScreenText ? btnDownloadScreenText.textContent : 'Download on Screen';
       btnDownloadScreen.disabled = true;
-      btnDownloadScreenText.textContent = 'Scanning for videos...';
+      if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Scanning for videos...';
 
       chrome.runtime.sendMessage({ type: 'TRIGGER_PAGE_SCAN_AND_DOWNLOAD' }, res => {
         btnDownloadScreen.disabled = false;
-        if (chrome.runtime.lastError) {
-          btnDownloadScreenText.textContent = 'Connection error';
+        if (typeof chrome !== 'undefined' && chrome.runtime?.lastError) {
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Connection error';
         } else if (res?.ok && res.downloadedCount > 0) {
           const count = res.downloadedCount || 1;
-          btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
         } else {
-          btnDownloadScreenText.textContent = res?.message || 'No video detected';
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = res?.message || 'No video detected';
         }
         setTimeout(() => {
-          btnDownloadScreenText.textContent = originalText;
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = originalText;
         }, 2500);
         refreshDownloaderState();
       });
