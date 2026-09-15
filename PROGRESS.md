@@ -13,6 +13,40 @@ Auto-maintained by dev-tracker skill. Do not edit the log section manually.
 
 ## Progress log
 
+### 2026-09-16, Session 32
+
+Status: Done
+
+#### What changed
+- Adopted Studio Relay unwatermarked stream architecture: resolved issue where video downloads failed, stalled, or produced blurry inpainting boxes.
+- Discovered that ByteDance internal `fallback_api` endpoint with `logo_type: 'unwatermarked'` provides the 100% pristine unwatermarked 1080p MP4 master file directly from ByteDance CDN.
+- Fixed fatal classification bug in `extractor.js`: eliminated regex match on `/tos-` that was misidentifying ByteDance CDN master URLs as dynamic watermarks. Set `watermarkType: 'none'`, `isRawMaster: true`, and `isUnwatermarked: true`.
+- Updated `scanTextForDirectVideoUrls` in `extractor.js`: direct SSE text matches are marked `source: 'preview_stream'` and `watermarkType: 'preview'`, preventing preview streams from triggering auto-downloads or overriding master streams.
+- Updated `addExtractedVideo` in `extractor.js`: preview entries are automatically upgraded when unwatermarked `fallback_api` master streams arrive.
+- Updated on-page download button listener in `extractor.js`: prioritizes and dispatches matching unwatermarked `fallback_api` master streams on button clicks.
+- Updated `triggerDownload` in `content.js`: strictly enforces that only unwatermarked `fallback_api` master streams download automatically. Removed `/tos-` check that forced `watermarkType: 'dynamic'`.
+- Updated `SCAN_AND_DOWNLOAD_ACTIVE_TAB` in `content.js`: prioritizes unwatermarked `fallback_api` master streams and forces download even when auto-download is paused in settings.
+- Updated `handlePageDownloadClick` in `content.js`: resolves unwatermarked master streams from `requestMainWorldMedia` instead of grabbing player DOM video elements.
+- Updated `dolaHandleAutoDownload` in `background.js`: downloads unwatermarked master streams directly via `chrome.downloads.download` at native CDN speeds without routing into offscreen canvas inpainting.
+- Fixed `TRIGGER_PAGE_SCAN_AND_DOWNLOAD` in `background.js`: removed blind script re-injections that were resetting in-memory arrays and breaking manual downloads.
+- Updated button status feedback in `sidepanel.js` and `popup.js` to display "Downloaded Master(s)!" upon successful trigger.
+- Cleaned up temporary extracted Studio Relay inspection folder.
+- Bumped extension version to `v2.4.2` across `manifest.json`, `sidepanel.html`, and `README.md`.
+- Re-packaged `dola-extension.zip`.
+
+#### Files touched
+- `extractor.js`: Updated `getDoubaoVideoInfoFromFallbackApi`, `scanTextForDirectVideoUrls`, `addExtractedVideo`, and page download click listener.
+- `content.js`: Updated `triggerDownload`, `onPageDownloadClicked`, `handlePageDownloadClick`, and `SCAN_AND_DOWNLOAD_ACTIVE_TAB`.
+- `background.js`: Updated `dolaHandleAutoDownload`, `TRIGGER_PAGE_SCAN_AND_DOWNLOAD`, and `chrome.downloads.onCreated`.
+- `sidepanel.js`: Updated button feedback text to reflect unwatermarked master downloads.
+- `popup.js`: Updated button feedback text to reflect unwatermarked master downloads.
+- `manifest.json`: Bumped version to 2.4.2.
+- `sidepanel.html`: Bumped version badges to v2.4.2.
+- `README.md`: Bumped version badges to v2.4.2.
+- `PROGRESS.md`: Documented Session 32.
+
+---
+
 ### 2026-09-15, Session 31
 
 Status: Done

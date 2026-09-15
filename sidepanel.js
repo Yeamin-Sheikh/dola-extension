@@ -882,7 +882,7 @@
 
         if (res && res.ok) {
           const count = res.downloadedCount || 1;
-          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Queued ${count} for Cleaning!`;
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Downloaded ${count} Master(s)!`;
           setTimeout(() => {
             if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Download on Screen';
             btnDownloadScreen.disabled = false;

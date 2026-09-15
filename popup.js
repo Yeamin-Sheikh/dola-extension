@@ -246,7 +246,7 @@
           if (btnDownloadScreenText) btnDownloadScreenText.textContent = 'Connection error';
         } else if (res?.ok && res.downloadedCount > 0) {
           const count = res.downloadedCount || 1;
-          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Queued ${count} Video(s) for Cleaning!`;
+          if (btnDownloadScreenText) btnDownloadScreenText.textContent = `Downloaded ${count} Master(s)!`;
         } else {
           if (btnDownloadScreenText) btnDownloadScreenText.textContent = res?.message || 'No video detected';
         }

@@ -207,6 +207,14 @@
       return;
     }
 
+    // STRICT RULE (Studio Relay Architecture):
+    // Only unwatermarked fallback_api streams are downloaded automatically.
+    // Preview, player, and DOM videos are ignored unless force is explicitly true.
+    if (video.source !== 'fallback_api' && !force) {
+      console.log('[Dola Downloader Bridge] Ignored non-fallback preview video stream.');
+      return;
+    }
+
     const cleanUrl = String(video.url).trim();
     if (!cleanUrl.startsWith('http')) return;
 
@@ -234,11 +242,13 @@
       }
     }
     resolvedPrompt = cleanPromptText(resolvedPrompt) || 'Dola Video';
-    const isByteDanceCdn = cleanUrl.includes('/tos-') || cleanUrl.includes('dola.dola.com') || cleanUrl.includes('dola.com') || cleanUrl.includes('byteoversea.com') || cleanUrl.includes('ibytedtos.com');
-    const isDynamic = Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn') || isByteDanceCdn);
-    const isStatic = Boolean(video.watermarkType === 'static' || (!isDynamic && cleanUrl.includes('video_gen_watermark')));
-    const watermarkType = isDynamic ? 'dynamic' : (isStatic ? 'static' : (video.watermarkType || 'none'));
-    const toastLabel = isDynamic ? 'Dynamic Watermark' : (isStatic ? 'Static Watermark' : '1080p Master (Raw)');
+
+    const isFallbackMaster = video.source === 'fallback_api' || video.isRawMaster === true || video.isUnwatermarked === true;
+    const isDynamic = !isFallbackMaster && Boolean(video.watermarkType === 'dynamic' || cleanUrl.includes('video_gen_watermark_dyn'));
+    const isStatic = !isFallbackMaster && !isDynamic && Boolean(video.watermarkType === 'static' || cleanUrl.includes('video_gen_watermark'));
+    const watermarkType = isFallbackMaster ? 'none' : (isDynamic ? 'dynamic' : (isStatic ? 'static' : (video.watermarkType || 'none')));
+    const isRawMaster = isFallbackMaster;
+    const toastLabel = isFallbackMaster ? '1080P Raw (No Watermark)' : (isDynamic ? 'Dynamic Watermark' : 'Static Watermark');
 
     try {
       if (!isContextValid()) {
@@ -253,13 +263,16 @@
           url: cleanUrl,
           pageUrl: window.location.href,
           prompt: resolvedPrompt,
-          watermarkType
+          watermarkType,
+          isRawMaster,
+          isUnwatermarked: isFallbackMaster,
+          definition: isFallbackMaster ? '1080P Raw' : (video.definition || '1080P')
         }
       }, response => {
         if (!isContextValid() || chrome.runtime.lastError) {
           return;
         }
-        // Only mark media as downloaded if it was actually queued for cleaning or downloaded directly
+        // Mark media as downloaded if it was actually queued or downloaded directly
         if (response?.ok && (response?.queued || response?.downloaded)) {
           downloadedMediaKeys.add(canonicalKey);
           downloadedMediaKeys.add(mediaKey);
@@ -362,11 +375,14 @@
       }
       const video = event?.detail;
       if (video && video.url) {
-        console.log('[Dola Content] 🎯 Intercepted on-page download from MAIN-world React Fiber:', video);
+        console.log('[Dola Content] 🎯 Intercepted on-page download from MAIN-world:', video);
+        const isMaster = video.source === 'fallback_api' || video.isRawMaster === true || video.isUnwatermarked === true;
         triggerDownload({
           ...video,
-          watermarkType: 'dynamic',
-          source: 'react_fiber_click'
+          watermarkType: isMaster ? 'none' : (video.watermarkType || 'dynamic'),
+          isRawMaster: isMaster,
+          isUnwatermarked: isMaster,
+          source: video.source || 'react_fiber_click'
         }, true);
       }
     } catch (e) {
@@ -618,27 +634,39 @@
       const containerVideos = Array.from(container.querySelectorAll('video')).map(v => v.currentSrc || v.src).filter(Boolean);
       const containerAnchors = Array.from(container.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(h => h.includes('/video/tos/') || h.includes('mime_type=video_mp4') || h.includes('tos-mya-') || h.includes('dola.dola.com'));
 
-      const combinedUrls = [...containerVideos, ...containerAnchors].filter(u => u && (u.startsWith('http://') || u.startsWith('https://')));
+      const title = extractTitleForLink(triggerEl) || findPromptInChatDom(triggerEl);
+      const mainWorldAll = await requestMainWorldMedia(800);
+      const fallbackMasters = (mainWorldAll || []).filter(v => v && v.source === 'fallback_api' && v.url);
 
-      if (combinedUrls.length === 0) {
-        const domAll = scanDomForDownloadLinks(true);
-        const mainWorldAll = await requestMainWorldMedia(800);
-        const all = [...(mainWorldAll || []), ...domAll].filter(v => v && v.url && (v.url.startsWith('http://') || v.url.startsWith('https://')));
-        if (all.length > 0) {
-          videosToDownload = all;
+      if (fallbackMasters.length > 0) {
+        // Match the unwatermarked fallback_api master stream corresponding to this card/prompt
+        let matched = null;
+        if (title) {
+          const cleanT = title.toLowerCase();
+          matched = fallbackMasters.slice().reverse().find(v => v.prompt && cleanT.includes(v.prompt.toLowerCase().substring(0, 30)));
         }
-      } else {
-        const title = extractTitleForLink(triggerEl) || findPromptInChatDom(triggerEl);
+        if (!matched) {
+          matched = fallbackMasters[fallbackMasters.length - 1];
+        }
+        videosToDownload = [matched];
+      } else if (combinedUrls.length > 0) {
         for (const url of combinedUrls) {
           videosToDownload.push({
             url,
             vid: url,
             title,
             prompt: title,
-            watermarkType: 'dynamic',
+            watermarkType: 'none',
+            isRawMaster: true,
             source: 'page_download_click',
             timestamp: Date.now()
           });
+        }
+      } else {
+        const domAll = scanDomForDownloadLinks(true);
+        const all = [...(mainWorldAll || []), ...domAll].filter(v => v && v.url && (v.url.startsWith('http://') || v.url.startsWith('https://')));
+        if (all.length > 0) {
+          videosToDownload = all;
         }
       }
 
@@ -654,14 +682,15 @@
       }
 
       if (uniqueToQueue.length > 0) {
-        // Valid video streams confirmed: prevent uncleaned browser download
         event.preventDefault();
         event.stopImmediatePropagation();
 
         for (const v of uniqueToQueue) {
           triggerDownload(v, true);
         }
-        showDownloadToast(uniqueToQueue[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${uniqueToQueue.length} video(s)...`);
+        const isMaster = uniqueToQueue[0]?.source === 'fallback_api' || uniqueToQueue[0]?.isRawMaster;
+        const toastType = isMaster ? '1080P Raw (No Watermark)' : 'Direct Master';
+        showDownloadToast(uniqueToQueue[0]?.prompt || 'Dola Video', toastType, `Downloading ${uniqueToQueue.length} unwatermarked video(s)...`);
       } else {
         // No HTTP stream resolved directly in content script: allow native event to proceed
         console.log('[Dola Content] No direct HTTP video stream resolved synchronously; allowing native download event to proceed.');
@@ -1298,37 +1327,58 @@
     if (message?.type === 'SCAN_AND_DOWNLOAD_ACTIVE_TAB') {
       (async () => {
         try {
-          const domVideos = scanDomForDownloadLinks(true);
-          const mainWorldVideos = await requestMainWorldMedia(1200);
-          const rawVideos = [...(mainWorldVideos || []), ...domVideos].filter(v => v && v.url && v.url.startsWith('http'));
+          const mainWorldVideos = await requestMainWorldMedia(2000);
+          // STRICT RULE (Studio Relay Architecture): Prioritize unwatermarked fallback_api master streams
+          const unwatermarked = (mainWorldVideos || []).filter(v => v?.source === 'fallback_api' && v.url && v.url.startsWith('http'));
 
-          // Deduplicate by canonical key
-          const seenKeys = new Set();
-          const uniqueVideos = [];
-          for (const v of rawVideos) {
-            const cKey = dolaExtractCanonicalKey(v.url, v.vid);
-            if (!seenKeys.has(cKey)) {
-              seenKeys.add(cKey);
-              uniqueVideos.push(v);
+          if (unwatermarked.length > 0) {
+            const seenKeys = new Set();
+            const uniqueMasters = [];
+            for (const v of unwatermarked) {
+              const cKey = dolaExtractCanonicalKey(v.url, v.vid);
+              if (!seenKeys.has(cKey)) {
+                seenKeys.add(cKey);
+                uniqueMasters.push(v);
+              }
             }
-          }
 
-          if (uniqueVideos.length > 0) {
-            for (const v of uniqueVideos) {
+            for (const v of uniqueMasters) {
               triggerDownload(v, true);
             }
-            const count = uniqueVideos.length;
+            const count = uniqueMasters.length;
             sendResponse({
               ok: true,
               foundCount: count,
-              message: `Queued ${count} video(s) for watermark removal`,
-              url: uniqueVideos[0].url
+              unwatermarked: true,
+              message: `Downloading ${count} unwatermarked master video(s)`,
+              url: uniqueMasters[0].url
             });
-            showDownloadToast(uniqueVideos[0]?.prompt || 'Dola Video', 'In-Browser Cleaner', `Cleaning watermark on ${count} video(s)...`);
+            showDownloadToast(uniqueMasters[0]?.prompt || 'Dola Video', '1080P Raw (No Watermark)', `Downloading ${count} unwatermarked master(s)...`);
             return;
           }
 
-          sendResponse({ ok: false, foundCount: 0, message: 'No video or download link detected on screen.' });
+          // Fallback: check DOM links if no fallback_api stream is currently stored in memory
+          const domVideos = scanDomForDownloadLinks(true);
+          const rawVideos = [...(mainWorldVideos || []), ...domVideos].filter(v => v && v.url && v.url.startsWith('http'));
+          if (rawVideos.length > 0) {
+            const target = rawVideos[rawVideos.length - 1];
+            triggerDownload(target, true);
+            sendResponse({
+              ok: true,
+              foundCount: 1,
+              message: 'Downloading video stream',
+              url: target.url
+            });
+            showDownloadToast(target?.prompt || 'Dola Video', 'Video Download', 'Downloading video stream...');
+            return;
+          }
+
+          sendResponse({
+            ok: false,
+            foundCount: 0,
+            message: 'Generating or unwatermarked 1080P stream not ready yet.'
+          });
+          showDownloadToast('No Videos Ready', 'Status', 'Generating or unwatermarked stream not ready yet.');
         } catch (err) {
           sendResponse({ ok: false, error: err.message || String(err) });
         }

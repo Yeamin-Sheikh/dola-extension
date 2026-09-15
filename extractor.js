@@ -333,8 +333,16 @@
 
     if ((vid && videoVidIndex.has(vid)) || videoUrlIndex.has(url)) {
       const existing = extractedVideos.find(v => (vid && String(v.vid) === vid) || v.url === url);
-      if (existing && videoInfo.prompt && (!existing.prompt || existing.prompt === 'Dola Video')) {
-        existing.prompt = videoInfo.prompt;
+      if (existing) {
+        if (videoInfo.source === 'fallback_api' && existing.source !== 'fallback_api') {
+          // Upgrade preview stream to unwatermarked raw master stream
+          Object.assign(existing, videoInfo);
+          try {
+            window.dispatchEvent(new CustomEvent('DOLA_VIDEO_EXTRACTED', { detail: existing }));
+          } catch (e) {}
+        } else if (videoInfo.prompt && (!existing.prompt || existing.prompt === 'Dola Video')) {
+          existing.prompt = videoInfo.prompt;
+        }
       }
       return;
     }
@@ -440,18 +448,15 @@
           rawUrl = decodeJsonEscapedFragment(rawUrl);
           if (isHttpUrl(rawUrl)) {
             const prompt = promptFallback || latestSubmittedPrompt || 'Dola Video';
-            const isByteDanceCdn = rawUrl.includes('/tos-') || rawUrl.includes('dola.dola.com') || rawUrl.includes('dola.com') || rawUrl.includes('byteoversea.com') || rawUrl.includes('ibytedtos.com');
-            const isDynWatermark = rawUrl.includes('video_gen_watermark_dyn') || isByteDanceCdn;
-            const isStaticWatermark = !isDynWatermark && rawUrl.includes('video_gen_watermark');
-            const watermarkType = isDynWatermark ? 'dynamic' : (isStaticWatermark ? 'static' : 'none');
-            const definition = isDynWatermark ? 'Dynamic Watermark' : (isStaticWatermark ? 'Static Watermark' : '1080p Stream');
+            // Direct text links in SSE are player/preview streams, not unwatermarked raw masters.
+            // Tag them explicitly as preview so they do not trigger auto-download or unwanted inpainting.
             addExtractedVideo({
               url: rawUrl,
               vid: rawUrl,
-              source: 'chat_stream_link',
+              source: 'preview_stream',
               prompt,
-              watermarkType,
-              definition
+              watermarkType: 'preview',
+              definition: 'Preview Stream'
             });
           }
         }
@@ -663,7 +668,12 @@
       width: Number(meta.vwidth || meta.width || data.vwidth || data.width || 0),
       height: Number(meta.vheight || meta.height || data.vheight || data.height || 0),
       definition: meta.definition || data.definition || '1080P Raw',
-      watermarkType: (videoUrl.includes('video_gen_watermark_dyn') || videoUrl.includes('/tos-') || videoUrl.includes('dola.dola.com')) ? 'dynamic' : 'none',
+      // Why: Requesting fallback_api with logo_type: 'unwatermarked' returns ByteDance's pristine
+      // 1080p master video stream directly without watermarks. Marking it watermarkType: 'none'
+      // and isRawMaster: true guarantees it is downloaded directly without canvas blur degradation.
+      watermarkType: 'none',
+      isRawMaster: true,
+      isUnwatermarked: true,
       duration: Number(meta.duration || data.duration || 0),
       codec_type: meta.codec_type || data.codec_type || '',
       poster_url: data.poster_url || data.poster || '',
@@ -1021,8 +1031,12 @@
       window.removeEventListener('DOLA_GET_CHAT_MEDIA', window.__DOLA_MEDIA_LISTENER__);
     }
     window.__DOLA_MEDIA_LISTENER__ = () => {
-      // Run live DOM + React fiber scan to catch all visible or newly rendered videos
-      scanDomForVideosLive();
+      // Prioritize unwatermarked fallback_api master streams.
+      // Only perform live DOM fallback scan if no fallback_api masters are captured yet.
+      const fallbackMasters = extractedVideos.filter(v => v && v.source === 'fallback_api');
+      if (fallbackMasters.length === 0) {
+        scanDomForVideosLive();
+      }
       window.dispatchEvent(new CustomEvent('DOLA_CHAT_MEDIA_RESPONSE', {
         detail: { videos: extractedVideos }
       }));
@@ -1062,12 +1076,48 @@
         }
 
         if (isDownloadBtn || hasDownloadSvg) {
-          const resolvedVideo = findVideoInReactFiber(triggerBtn);
-          if (resolvedVideo && resolvedVideo.url) {
-            console.log('[Dola Extractor] 🎯 Resolved download button click via React Fiber:', resolvedVideo);
-            addExtractedVideo(resolvedVideo);
+          // Why: Studio Relay principle — prioritize the unwatermarked fallback_api master stream
+          // captured from ByteDance network responses over DOM player preview elements.
+          const parentCard = (triggerBtn.closest && triggerBtn.closest('[data-message-id], [class*="scene"], [class*="video"], [class*="card"], [class*="item"], [class*="bubble"], article, section')) || null;
+          const cardText = parentCard ? (parentCard.innerText || parentCard.textContent || '') : '';
+
+          let matchedMaster = null;
+          const fallbackMasters = extractedVideos.filter(v => v.source === 'fallback_api');
+          if (fallbackMasters.length > 0) {
+            // Find fallback_api video matching card text or take latest captured
+            if (cardText) {
+              matchedMaster = fallbackMasters.slice().reverse().find(v => {
+                if (!v.prompt || v.prompt === 'Dola Video') return false;
+                const cleanP = v.prompt.trim().toLowerCase();
+                return cardText.toLowerCase().includes(cleanP.substring(0, 30));
+              });
+            }
+            if (!matchedMaster) {
+              matchedMaster = fallbackMasters[fallbackMasters.length - 1];
+            }
+          }
+
+          let videoToSend = null;
+          if (matchedMaster) {
+            console.log('[Dola Extractor] 🎯 Resolved unwatermarked master stream for on-page click:', matchedMaster.vid || matchedMaster.url);
+            videoToSend = {
+              ...matchedMaster,
+              source: 'fallback_api',
+              watermarkType: 'none',
+              isRawMaster: true,
+              isUnwatermarked: true
+            };
+          } else {
+            const resolvedVideo = findVideoInReactFiber(triggerBtn);
+            if (resolvedVideo && resolvedVideo.url) {
+              videoToSend = resolvedVideo;
+              addExtractedVideo(resolvedVideo);
+            }
+          }
+
+          if (videoToSend && videoToSend.url) {
             window.dispatchEvent(new CustomEvent('DOLA_PAGE_DOWNLOAD_CLICKED', {
-              detail: resolvedVideo
+              detail: videoToSend
             }));
           }
         }

@@ -14,12 +14,12 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Manifest-V3-5e6ad2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
-  <img src="https://img.shields.io/badge/Engine-In--Browser%20Offscreen-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="In-Browser Cleaner">
-  <img src="https://img.shields.io/badge/Version-v2.4.1-38bdf8?style=for-the-badge" alt="Version 2.4.1">
+  <img src="https://img.shields.io/badge/Engine-Fallback%20Stream%20Extractor-22c55e?style=for-the-badge&logo=webassembly&logoColor=white" alt="Fallback Stream Extractor">
+  <img src="https://img.shields.io/badge/Version-v2.4.2-38bdf8?style=for-the-badge" alt="Version 2.4.2">
   <img src="https://img.shields.io/badge/Platform-Chrome_MV3-10b981?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Manifest V3">
   <img src="https://img.shields.io/badge/Status-Production_Ready-6366f1?style=for-the-badge" alt="Status Production">
   <a href="dola-extension.zip" download>
-    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.4.1-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
+    <img src="https://img.shields.io/badge/Download_Extension_ZIP-v2.4.2-0284c7?style=for-the-badge&logo=zip&logoColor=white" alt="Download ZIP">
   </a>
 </p>
 
